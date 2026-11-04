@@ -14,6 +14,8 @@ These ADR identifiers organize the owner's approved handoff; they do not add arc
 
 **Consequence:** Domain integration must preserve this separation. This decision does not deliver a domain implementation.
 
+**Consequence:** The domain-agnostic claim is to be exercised by a small synthetic non-NFL domain before it is treated as established. This is an architecture-validation mechanism, not a second product.
+
 ## ADR-002 — Lean infrastructure before extension capability
 
 **Context:** Broad future capabilities could expand the first executable skeleton beyond the foundation that can be proved.

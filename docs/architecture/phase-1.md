@@ -13,6 +13,8 @@ Ripley is a domain-agnostic core platform, not an NFL prediction engine. NFL pre
 
 Domain-specific terminology, schemas, features, models, and grading logic remain outside Ripley Core.
 
+The domain-agnostic claim is to be exercised by a small synthetic non-NFL domain before it is treated as established; this is an architecture-validation mechanism, not a second product.
+
 ## 2. Lean infrastructure first
 
 Design for extension. Build the minimum necessary foundation. Prove the foundation. Then add capability in controlled layers.
