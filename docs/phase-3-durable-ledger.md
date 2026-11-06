@@ -37,6 +37,7 @@ Active task duplicates continue to reference the existing task. A task blocked b
 | Duplicate task/idempotency | IMPLEMENTED (sequential) | Index rebuilt on open; active duplicate retained; terminal task allows explicit new lineage |
 | Timeout | DEFERRED | No deadline enforcement or cancellation |
 | Automatic recovery/re-execution | DEFERRED — P4-RECOVERY-001 | No automatic resume, replay or retry |
+| Restart-only transition edges | IMPLEMENTED (gated) | test_p3_11 verifies already-open SQLiteLedger and in-memory Ledger reject submitted/validated → blocked even with restart actor/reason |
 
 ## Test evidence
 

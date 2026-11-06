@@ -6,7 +6,7 @@ import json
 import sqlite3
 import uuid
 
-from .core import Ledger, Record, canonical_json, content_hash, freeze
+from .core import ALLOWED_TRANSITIONS, Ledger, Record, canonical_json, content_hash, freeze
 
 
 class SQLiteLedger(Ledger):
@@ -108,11 +108,8 @@ class SQLiteLedger(Ledger):
         interrupted = (self._opening and current in ('submitted', 'running', 'validated')
                        and to_state == 'blocked' and actor == 'ripley'
                        and reason == 'interrupted_by_restart')
-        allowed = {'submitted': {'running'}, 'running': {'validated', 'blocked'},
-                   'validated': {'pending_owner_approval'}, 'blocked': set(),
-                   'pending_owner_approval': {'approved', 'rejected'},
-                   'approved': set(), 'rejected': set()}
-        if not interrupted and to_state not in allowed[current]:
+        restart_only = current in ('submitted', 'validated') and to_state == 'blocked'
+        if to_state not in ALLOWED_TRANSITIONS[current] or (restart_only and not interrupted):
             raise ValueError('invalid state transition')
         transitions = self._transitions(task_id)
         return self.add('task_transition', {'task_id': task_id, 'from_state': from_state,

@@ -383,6 +383,8 @@ class MemorySkeletonTests(SkeletonContract, unittest.TestCase):
 
 class SQLiteSkeletonTests(SkeletonContract, unittest.TestCase):
     def setUp(self):
+        # patch.dict makes Ledger and Ripley names in the shared test bodies
+        # resolve to the SQLite variants for this test, without changing those bodies.
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         paths = iter(range(100))

@@ -8,6 +8,18 @@ import json
 import uuid
 
 
+# → blocked from submitted/validated is restart-only; gated by SQLiteLedger.transition
+ALLOWED_TRANSITIONS = {
+    'submitted': {'running', 'blocked'},
+    'running': {'validated', 'blocked'},
+    'validated': {'pending_owner_approval', 'blocked'},
+    'blocked': set(),
+    'pending_owner_approval': {'approved', 'rejected'},
+    'approved': set(),
+    'rejected': set(),
+}
+
+
 def freeze(value):
     if isinstance(value, Mapping):
         if not all(isinstance(k, str) for k in value):
@@ -88,11 +100,8 @@ class Ledger:
         current = self.task_state(task_id)
         if current != from_state:
             raise ValueError('stale task state')
-        allowed = {'submitted': {'running'}, 'running': {'validated', 'blocked'},
-                   'validated': {'pending_owner_approval'}, 'blocked': set(),
-                   'pending_owner_approval': {'approved', 'rejected'},
-                   'approved': set(), 'rejected': set()}
-        if to_state not in allowed[current]:
+        if (to_state not in ALLOWED_TRANSITIONS[current] or
+                (current in ('submitted', 'validated') and to_state == 'blocked')):
             raise ValueError('invalid state transition')
         prior = next((r.id for r in reversed(tuple(self._records.values()))
                       if r.kind == 'task_transition' and r.data['task_id'] == task_id), None)

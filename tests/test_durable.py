@@ -185,6 +185,20 @@ class DurableTests(unittest.TestCase):
             sql_strings = ' '.join(t.string for t in tokens if t.type == tokenize.STRING)
             self.assertIsNone(re.search(r'\b(?:UPDATE|DELETE|REPLACE)\b', sql_strings, re.I))
 
+    def test_p3_11_restart_edges_rejected_outside_open(self):
+        for backend in (SQLiteLedger(self.path), Ledger()):
+            for state in ('submitted', 'validated'):
+                with self.subTest(backend=type(backend).__name__, state=state):
+                    task = backend.add('task', {'task_key': state, 'state': 'submitted'})
+                    if state == 'validated':
+                        backend.transition(task.id, 'submitted', 'running', 'ripley', 'test')
+                        backend.transition(task.id, 'running', 'validated', 'ripley', 'test')
+                    count = len(backend.records)
+                    with self.assertRaises(ValueError):
+                        backend.transition(task.id, state, 'blocked', 'ripley', 'interrupted_by_restart')
+                    self.assertEqual(backend.task_state(task.id), state)
+                    self.assertEqual(len(backend.records), count)
+
 
 if __name__ == '__main__':
     unittest.main()

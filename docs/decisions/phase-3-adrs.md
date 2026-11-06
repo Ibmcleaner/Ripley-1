@@ -48,7 +48,7 @@ These are corrections required by persistence, not scope creep:
 
 ### Acceptance
 
-Phase 3 is not accepted merely because rows can be saved and reloaded. Acceptance requires all of the following, each with a named test (`test_p3_01` … `test_p3_10` in `tests/test_durable.py`):
+Phase 3 is not accepted merely because rows can be saved and reloaded. Acceptance requires all of the following, each with a named test (`test_p3_01` … `test_p3_11` in `tests/test_durable.py`):
 
 | # | Property | Test |
 |---|---|---|
@@ -62,6 +62,7 @@ Phase 3 is not accepted merely because rows can be saved and reloaded. Acceptanc
 | 08 | Index rebuilt from records | Key with two-task lineage → after reopen `task_for_key` returns the newest |
 | 09 | Tamper detection | Modify one row's `data` out of band → open raises; nothing appended |
 | 10 | Append-only enforced | Source of the ledger module contains no `UPDATE`/`DELETE`/`REPLACE` |
+| 11 | Restart-only edges gated | Already-open SQLiteLedger and in-memory Ledger reject submitted/validated → blocked, even with restart actor/reason |
 
 Plus: the existing Phase 2 suite runs **unchanged** against both the in-memory `Ledger` and `SQLiteLedger` (parameterized; zero test-body edits).
 
@@ -73,4 +74,4 @@ Explicitly outside Phase 3: automatic recovery / re-execution (P4-RECOVERY-001);
 
 ### Consequences
 
-Ripley's facts survive the process. Interrupted work is visible and blocked rather than silently lost or silently retried. The in-memory ledger remains the test-speed default; the SQLite ledger is the first durable implementation behind an unchanged interface. The cost is one more module, one table, and ten tests.
+Ripley's facts survive the process. Interrupted work is visible and blocked rather than silently lost or silently retried. The in-memory ledger remains the test-speed default; the SQLite ledger is the first durable implementation behind an unchanged interface. The cost is one more module, one table, and eleven tests.
