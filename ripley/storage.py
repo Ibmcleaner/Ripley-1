@@ -35,6 +35,7 @@ class SQLiteLedger(Ledger):
             self._records[record_id] = Record(record_id, kind, at, data, supersedes, digest)
             if kind == 'task':
                 self._task_index[data['task_key']] = record_id
+        opened_at = datetime.now(timezone.utc)
         self._opening = True
         try:
             for task in tuple(self._records.values()):
@@ -44,9 +45,13 @@ class SQLiteLedger(Ledger):
                 if state in ('submitted', 'running', 'validated'):
                     attempts = [r for r in self._ordered('execution_attempt')
                                 if r.data['task_id'] == task.id]
-                    self.add('execution_failure', {'task_id': task.id, 'stage': 'interrupted',
+                    deadline = attempts[-1].data.get('deadline_at') if attempts else None
+                    overdue = (state == 'running' and deadline is not None
+                               and datetime.fromisoformat(deadline) < opened_at)
+                    self.add('execution_failure', {'task_id': task.id,
+                        'stage': 'timeout' if overdue else 'interrupted',
                         'attempt_id': attempts[-1].id if attempts else None,
-                        'message': 'interrupted_by_restart'})
+                        'message': 'deadline_exceeded_before_restart' if overdue else 'interrupted_by_restart'})
                     self.transition(task.id, state, 'blocked', 'ripley', 'interrupted_by_restart')
         finally:
             self._opening = False

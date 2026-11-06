@@ -1,10 +1,11 @@
 """Domain-neutral in-memory execution; not durable storage or secure authorization."""
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import MappingProxyType
 import hashlib
 import json
+import math
 import uuid
 
 
@@ -134,19 +135,16 @@ class IndependentValidator:
 
 
 class Ripley:
-    def __init__(self, ledger=None, validator=None):
+    def __init__(self, ledger=None, validator=None, clock=None):
         self.ledger = ledger if ledger is not None else Ledger()
         self.validator = validator if validator is not None else IndependentValidator()
+        self.clock = clock if clock is not None else lambda: datetime.now(timezone.utc)
 
     def run(self, adapter, inputs, worker=None, allowed_workers=('mock-worker',),
             correction_budget=1):
-        if type(correction_budget) is not int or correction_budget < 0:
-            raise ValueError('correction_budget must be a nonnegative integer')
-        worker = worker if worker is not None else MockWorker()
-        if worker.identity not in allowed_workers:
-            raise PermissionError('worker not allowed')
-        if worker is self.validator or worker.identity == self.validator.identity:
-            raise PermissionError('worker cannot independently validate its own result')
+        self._check_correction_budget(correction_budget)
+        worker = self._checked_worker(worker, allowed_workers)
+        timeout = self._timeout(adapter)
         inputs = freeze(inputs)
         task_type = 'predict'
         task_key = content_hash({'domain_id': adapter.domain_id,
@@ -155,14 +153,105 @@ class Ripley:
         if existing is not None and self.ledger.task_state(existing.id) not in ('blocked', 'approved', 'rejected'):
             self.ledger.add('duplicate_submission', {'task_key': task_key, 'task_id': existing.id})
             return self._run_return('duplicate_of_existing_task', task=existing)
-        # Domain adapter owns snapshot provenance and data-quality declarations.
-        metadata = adapter.snapshot_metadata(inputs)
-        snapshot = self.ledger.add('snapshot', {'domain_id': adapter.domain_id, 'inputs': inputs,
-            'observed_at': metadata['observed_at'], 'sources': metadata['sources'],
-            'data_quality': metadata['data_quality'], 'domain_version': adapter.version})
+        return self._execute(adapter, inputs, worker, allowed_workers, correction_budget,
+                             timeout, task_key, existing)
+
+    @staticmethod
+    def _check_correction_budget(correction_budget):
+        if type(correction_budget) is not int or correction_budget < 0:
+            raise ValueError('correction_budget must be a nonnegative integer')
+
+    def _checked_worker(self, worker, allowed_workers):
+        worker = worker if worker is not None else MockWorker()
+        if worker.identity not in allowed_workers:
+            raise PermissionError('worker not allowed')
+        if worker is self.validator or worker.identity == self.validator.identity:
+            raise PermissionError('worker cannot independently validate its own result')
+        return worker
+
+    @staticmethod
+    def _timeout(adapter):
+        seconds = getattr(adapter, 'timeout_seconds', None)
+        if seconds is None:
+            return None
+        if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds <= 0:
+            raise ValueError('timeout_seconds must be a positive finite number')
+        return timedelta(seconds=seconds)
+
+    def recover(self, blocked_task_id, actor, reason, adapter, worker=None,
+                allowed_workers=('mock-worker',), correction_budget=1):
+        task = self.ledger.records.get(blocked_task_id)
+        if task is None or task.kind != 'task' or self.ledger.task_state(task.id) != 'blocked':
+            raise ValueError('blocked task required')
+        records = tuple(self.ledger.records.values())
+        failures = [r for r in records if r.kind == 'execution_failure'
+                    and r.data['task_id'] == task.id]
+        if (not failures or failures[-1].data.get('stage') not in ('interrupted', 'timeout') or
+                any(r.kind == 'correction_budget_exhaustion' and r.data['task_id'] == task.id
+                    for r in records)):
+            raise ValueError('recovery not eligible for this failure')
+        if task.data.get('replay_policy') != 'safe':
+            raise ValueError('safe replay policy required')
+        if task.data['resource_ceiling'] != 'no external calls':
+            raise ValueError('recovery requires no external calls')
+        if adapter.domain_id != task.data['domain_id'] or adapter.version != task.data['domain_version']:
+            raise ValueError('adapter domain and version must match task')
+        worker = self._checked_worker(worker, allowed_workers)
+        if not isinstance(actor, str) or not actor or not isinstance(reason, str) or not reason.strip():
+            raise ValueError('actor and reason required')
+        # Argument checks precede any authorization or exhaustion write.
+        self._check_correction_budget(correction_budget)
+        timeout = self._timeout(adapter)
+        lineage = set()
+        ancestor = task
+        while True:
+            lineage.add(ancestor.id)
+            previous_id = ancestor.data.get('recovers_task_id')
+            if previous_id is None:
+                break
+            ancestor = self.ledger.records[previous_id]
+        consumed = sum(r.kind == 'recovery_authorization' and
+                       r.data['blocked_task_id'] in lineage for r in records)
+        if consumed >= 1:
+            self.ledger.add('recovery_budget_exhaustion', {'task_id': task.id,
+                'lineage_root_id': ancestor.id, 'budget': 1, 'consumed': consumed})
+            raise ValueError('recovery budget exhausted')
+        attempts = [r for r in records if r.kind == 'execution_attempt'
+                    and r.data['task_id'] == task.id]
+        replay_attempt_id = attempts[-1].id if attempts else None
+        authorization = self.ledger.add('recovery_authorization', {
+            'blocked_task_id': task.id, 'interrupted_attempt_id': replay_attempt_id,
+            'actor': actor, 'reason': reason, 'replay_policy_cited': 'safe',
+            'resource_ceiling_cited': task.data['resource_ceiling']})
+        snapshot = self.ledger.records[task.data['input_snapshot_id']]
+        outcome = self._execute(adapter, snapshot.data['inputs'], worker, allowed_workers,
+                                correction_budget, timeout, task.data['task_key'], task,
+                                replay_snapshot=snapshot, replay_attempt_id=replay_attempt_id)
+        outcome['authorization'] = authorization
+        return outcome
+
+    def _execute(self, adapter, inputs, worker, allowed_workers, correction_budget,
+                 timeout, task_key, existing, replay_snapshot=None, replay_attempt_id=None):
+        if replay_snapshot is None:
+            # Domain adapter owns snapshot provenance and data-quality declarations.
+            metadata = adapter.snapshot_metadata(inputs)
+            snapshot_data = {'domain_id': adapter.domain_id, 'inputs': inputs,
+                'observed_at': metadata['observed_at'], 'sources': metadata['sources'],
+                'data_quality': metadata['data_quality'], 'domain_version': adapter.version}
+        else:
+            snapshot_data = {name: replay_snapshot.data[name] for name in
+                             ('domain_id', 'inputs', 'observed_at', 'sources',
+                              'data_quality', 'domain_version')}
+            snapshot_data['replays_snapshot_id'] = replay_snapshot.id
+        snapshot = self.ledger.add('snapshot', snapshot_data)
+        policy = getattr(adapter, 'replay_policy', None)
+        policy = policy if policy in ('safe', 'no') else 'unknown'
+        task_type = 'predict'
         task = self.ledger.add('task', {'domain_id': adapter.domain_id, 'task_type': task_type,
             'domain_version': adapter.version, 'task_key': task_key,
             'previous_task_id': existing.id if existing is not None else None,
+            'recovers_task_id': existing.id if replay_snapshot is not None else None,
+            'replay_policy': policy,
             'input_snapshot_id': snapshot.id, 'dependencies': [], 'allowed_workers': allowed_workers,
             'expected_output': tuple(adapter.expected_output), 'validation_requirements': ('independent',),
             'evidence_requirements': ('linked-records',), 'resource_ceiling': 'no external calls',
@@ -173,8 +262,12 @@ class Ripley:
         reviews = []
         corrections = []
         for attempt_number in range(correction_budget + 1):
+            started_at = self.clock().astimezone(timezone.utc)
+            deadline = started_at + timeout if timeout is not None else None
             attempt = self.ledger.add('execution_attempt', {'task_id': task.id,
-                'worker': worker.identity, 'attempt_number': attempt_number + 1})
+                'worker': worker.identity, 'attempt_number': attempt_number + 1,
+                'deadline_at': deadline.isoformat() if deadline is not None else None,
+                'replays_attempt_id': replay_attempt_id if attempt_number == 0 else None})
             try:
                 output = worker.produce(task, snapshot, adapter)
             except Exception as exc:
@@ -185,10 +278,19 @@ class Ripley:
                 return self._run_return('blocked_worker_failure', task=task,
                     snapshot=snapshot, attempt=attempt, failure=failure,
                     results=results, validations=validations, reviews=reviews, corrections=corrections)
+            completed_at = self.clock().astimezone(timezone.utc)
             result = self.ledger.add('result', {'task_id': task.id, 'attempt_id': attempt.id,
                 'input_snapshot_id': snapshot.id, 'worker': worker.identity, 'output': output,
                 'evidence': (), 'warnings': (), 'execution': 'deterministic', 'cost': 0})
             results.append(result)
+            if deadline is not None and completed_at > deadline:
+                failure = self.ledger.add('execution_failure', {'task_id': task.id,
+                    'stage': 'timeout', 'attempt_id': attempt.id,
+                    'deadline_at': deadline.isoformat(), 'completed_at': completed_at.isoformat()})
+                self.ledger.transition(task.id, 'running', 'blocked', 'ripley', 'deadline_exceeded')
+                return self._run_return('blocked_timeout', task=task, snapshot=snapshot,
+                    attempt=attempt, result=result, failure=failure, results=results,
+                    validations=validations, reviews=reviews, corrections=corrections)
             if corrections:
                 request = corrections[-1]
                 previous = results[-2]
@@ -254,10 +356,11 @@ class Ripley:
     @staticmethod
     def _run_return(outcome, *, task, snapshot=None, attempt=None, result=None,
                     validation=None, review=None, evidence=None, approval=None,
-                    failure=None, blocked=None, results=(), validations=(), reviews=(), corrections=()):
+                    failure=None, blocked=None, authorization=None, results=(), validations=(), reviews=(), corrections=()):
         return {'outcome': outcome, 'task': task, 'snapshot': snapshot, 'attempt': attempt,
                 'result': result, 'validation': validation, 'review': review,
                 'evidence': evidence, 'approval': approval, 'failure': failure, 'blocked': blocked,
+                'authorization': authorization,
                 'results': tuple(results), 'validations': tuple(validations),
                 'reviews': tuple(reviews), 'corrections': tuple(corrections)}
 

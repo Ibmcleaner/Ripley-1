@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 class InventoryAdapter:
     domain_id = 'synthetic-inventory'
     version = '1'
+    replay_policy = 'safe'
     expected_output = {'reorder': bool, 'projected_stock': int}
 
     def snapshot_metadata(self, inputs):
