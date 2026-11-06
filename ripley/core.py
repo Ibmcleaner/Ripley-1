@@ -3,16 +3,33 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from types import MappingProxyType
-import copy
+import hashlib
+import json
 import uuid
 
 
 def freeze(value):
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
+        if not all(isinstance(k, str) for k in value):
+            raise TypeError('record keys must be strings')
         return MappingProxyType({k: freeze(v) for k, v in value.items()})
     if isinstance(value, (tuple, list)):
         return tuple(freeze(v) for v in value)
-    return copy.deepcopy(value)
+    if value is None or type(value) in (str, int, float, bool):
+        return value
+    raise TypeError('records require JSON-compatible values')
+
+
+def content_hash(value):
+    def plain(v):
+        if isinstance(v, Mapping):
+            return {k: plain(x) for k, x in v.items()}
+        if isinstance(v, (tuple, list)):
+            return [plain(x) for x in v]
+        return v
+    encoded = json.dumps(plain(value), sort_keys=True, separators=(',', ':'),
+                         allow_nan=False).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -22,6 +39,7 @@ class Record:
     at: str
     data: object
     supersedes: str | None = None
+    content_hash: str = ""
 
 
 class Ledger:
@@ -38,8 +56,10 @@ class Ledger:
             previous = self._records[supersedes]
             if previous.kind != kind or kind not in ('review', 'event_assessment', 'classification', 'approval'):
                 raise ValueError('only judgments may supersede judgments of the same kind')
+        frozen = freeze(data)
+        digest = content_hash({'kind': kind, 'data': frozen, 'supersedes': supersedes})
         record = Record(str(uuid.uuid4()), kind, datetime.now(timezone.utc).isoformat(),
-                        freeze(data), supersedes)
+                        frozen, supersedes, digest)
         self._records[record.id] = record
         return record
 
@@ -57,7 +77,8 @@ class Ledger:
             raise ValueError('stale task state')
         allowed = {'submitted': {'running'}, 'running': {'validated', 'blocked'},
                    'validated': {'pending_owner_approval'}, 'blocked': set(),
-                   'pending_owner_approval': set()}
+                   'pending_owner_approval': {'approved', 'rejected'},
+                   'approved': set(), 'rejected': set()}
         if to_state not in allowed[current]:
             raise ValueError('invalid state transition')
         prior = next((r.id for r in reversed(tuple(self._records.values()))
@@ -85,6 +106,8 @@ class IndependentValidator:
             type(output[k]) is t for k, t in expected.items())
         return {'result_id': result.id, 'validator': self.identity,
                 'validator_version': self.version, 'ruleset': self.ruleset,
+                'result_hash': result.content_hash,
+                'contract_hash': content_hash({k: t.__name__ for k, t in expected.items()}),
                 'passed': passed}
 
 
@@ -133,20 +156,36 @@ class Ripley:
                 'input_snapshot_id': snapshot.id, 'worker': worker.identity, 'output': output,
                 'evidence': (), 'warnings': (), 'execution': 'deterministic', 'cost': 0})
             results.append(result)
+            if corrections:
+                request = corrections[-1]
+                previous = results[-2]
+                self.ledger.add('correction', {'task_id': task.id,
+                    'request_id': request.id, 'reviewer': request.data['reviewer'],
+                    'reason': request.data['reason'], 'original_result_id': previous.id,
+                    'original_result_hash': previous.content_hash,
+                    'corrected_result_id': result.id, 'corrected_result_hash': result.content_hash})
             finding = self.validator.validate(result, adapter)
-            if finding.get('result_id') != result.id or finding.get('validator') != self.validator.identity:
+            if (finding.get('result_id') != result.id or
+                    finding.get('result_hash') != result.content_hash or
+                    finding.get('validator') != self.validator.identity):
                 raise ValueError('validation provenance mismatch')
             validation = self.ledger.add('validation', finding)
             validations.append(validation)
             review = self.ledger.add('review', {'result_id': result.id, 'validation_id': validation.id,
                 'reviewer': 'ripley-review-policy',
+                'result_hash': result.content_hash, 'validation_hash': validation.content_hash,
+                'reason': 'output shape passed' if finding['passed'] else 'invalid output structure',
                 'decision': 'acceptable' if finding['passed'] else 'correction_required'})
             reviews.append(review)
             if finding['passed']:
                 self.ledger.transition(task.id, 'running', 'validated', 'ripley', 'review accepted')
                 evidence = self.ledger.add('evidence', {'task_id': task.id, 'snapshot_id': snapshot.id,
-                    'result_id': result.id, 'validation_id': validation.id, 'review_id': review.id})
+                    'result_id': result.id, 'validation_id': validation.id, 'review_id': review.id,
+                    'hashes': {r.id: r.content_hash for r in
+                               (task, snapshot, result, validation, review)}})
                 approval = self.ledger.add('approval', {'evidence_id': evidence.id,
+                    'evidence_hash': evidence.content_hash, 'task_id': task.id,
+                    'result_hash': result.content_hash,
                     'authority': 'owner', 'status': 'pending_owner_approval'})
                 self.ledger.transition(task.id, 'validated', 'pending_owner_approval',
                                        'ripley', 'awaiting owner')
@@ -158,7 +197,9 @@ class Ripley:
             if attempt_number < correction_budget:
                 corrections.append(self.ledger.add('correction_request', {
                     'task_id': task.id, 'rejected_result_id': result.id,
-                    'review_id': review.id, 'reason': 'invalid output structure'}))
+                    'review_id': review.id, 'reviewer': review.data['reviewer'],
+                    'rejected_result_hash': result.content_hash,
+                    'reason': 'invalid output structure'}))
             else:
                 blocked = self.ledger.add('correction_budget_exhaustion', {
                     'task_id': task.id, 'last_result_id': result.id, 'budget': correction_budget})
@@ -175,4 +216,34 @@ class Ripley:
             raise ValueError('not a review')
         return self.ledger.add('review', {'result_id': prior.data['result_id'],
             'validation_id': prior.data['validation_id'], 'reviewer': reviewer,
+            'result_hash': prior.data['result_hash'],
+            'validation_hash': prior.data['validation_hash'],
             'decision': decision, 'reason': reason}, supersedes=prior_id)
+
+    def decide_approval(self, pending_id, actor, decision, reason):
+        """Explicit local decision record; actor labels are not authenticated identities."""
+        if actor != 'owner' or decision not in ('approved', 'rejected') or not reason.strip():
+            raise ValueError('owner, explicit decision and reason required')
+        pending = self.ledger.records[pending_id]
+        if pending.kind != 'approval' or pending.data['status'] != 'pending_owner_approval':
+            raise ValueError('pending approval required')
+        task_id = pending.data['task_id']
+        if self.ledger.task_state(task_id) != 'pending_owner_approval':
+            raise ValueError('task is not awaiting approval')
+        evidence = self.ledger.records[pending.data['evidence_id']]
+        if evidence.content_hash != pending.data['evidence_hash']:
+            raise ValueError('evidence mismatch')
+        for record_id, digest in evidence.data['hashes'].items():
+            if self.ledger.records[record_id].content_hash != digest:
+                raise ValueError('linked content mismatch')
+        if decision == 'approved':
+            validation = self.ledger.records[evidence.data['validation_id']]
+            review = self.ledger.records[evidence.data['review_id']]
+            if (not validation.data['passed'] or review.data['decision'] != 'acceptable' or
+                    any(r.supersedes == review.id for r in self.ledger.records.values())):
+                raise ValueError('current accepted review and passing check required')
+        approval = self.ledger.add('approval', {
+            **dict(pending.data), 'authority': actor, 'status': decision, 'reason': reason},
+            supersedes=pending.id)
+        self.ledger.transition(task_id, 'pending_owner_approval', decision, actor, reason)
+        return approval

@@ -1,5 +1,5 @@
 import unittest
-from ripley.core import Ripley, MockWorker, IndependentValidator
+from ripley.core import Ripley, MockWorker, IndependentValidator, content_hash
 from ripley.synthetic import InventoryAdapter
 
 
@@ -149,6 +149,102 @@ class SkeletonTests(unittest.TestCase):
             'ruleset': 'output-shape-v2', 'passed': True})
         self.assertNotEqual(first.id, new.id)
         self.assertEqual(self.engine.ledger.records[first.id].data['validator_version'], '1')
+
+    def test_validation_deterministic_and_bound_to_result(self):
+        adapter = InventoryAdapter()
+        result = self.engine.run(adapter, self.inputs)['result']
+        validator = IndependentValidator()
+        first = validator.validate(result, adapter)
+        self.assertEqual(first, validator.validate(result, adapter))
+        self.assertEqual(first['result_hash'], result.content_hash)
+        class DifferentContract(InventoryAdapter):
+            expected_output = {'reorder': int, 'projected_stock': int}
+        changed = validator.validate(result, DifferentContract())
+        self.assertFalse(changed['passed'])
+        self.assertNotEqual(first['contract_hash'], changed['contract_hash'])
+        old_check = self.engine.ledger.add('validation', first)
+        new_check = self.engine.ledger.add('validation', changed)
+        self.assertTrue(old_check.data['passed'])
+        self.assertFalse(new_check.data['passed'])
+
+    def test_hashes_cover_content_and_survive_input_mutation(self):
+        records = self.engine.run(InventoryAdapter(), self.inputs)
+        evidence = records['evidence']
+        for record_id, digest in evidence.data['hashes'].items():
+            record = self.engine.ledger.records[record_id]
+            self.assertEqual(digest, content_hash({'kind': record.kind,
+                'data': record.data, 'supersedes': record.supersedes}))
+        original = records['snapshot'].content_hash
+        self.inputs['stock'] = 999
+        self.assertEqual(original, records['snapshot'].content_hash)
+        self.assertEqual(content_hash({'a': 1, 'b': 2}), content_hash({'b': 2, 'a': 1}))
+        self.assertNotEqual(content_hash({'a': 1}), content_hash({'a': 2}))
+        with self.assertRaises(TypeError):
+            evidence.data['hashes']['new'] = 'forged'
+
+    def test_correction_links_original_and_corrected_hashes(self):
+        class CorrectingWorker(MockWorker):
+            calls = 0
+            def produce(self, task, snapshot, adapter):
+                self.calls += 1
+                return {'bad': 1} if self.calls == 1 else adapter.predict(snapshot.data['inputs'])
+        records = self.engine.run(InventoryAdapter(), self.inputs, worker=CorrectingWorker())
+        correction = next(r for r in self.engine.ledger.records.values() if r.kind == 'correction')
+        first, second = records['results']
+        self.assertEqual(correction.data['original_result_hash'], first.content_hash)
+        self.assertEqual(correction.data['corrected_result_hash'], second.content_hash)
+        self.assertEqual(correction.data['request_id'], records['corrections'][0].id)
+        self.assertTrue(correction.data['reason'])
+        self.assertTrue(correction.data['reviewer'])
+        self.assertFalse(records['validations'][0].data['passed'])
+        with self.assertRaises(TypeError):
+            first.data['output']['bad'] = 2
+
+    def test_validation_never_implicitly_approves(self):
+        records = self.engine.run(InventoryAdapter(), self.inputs)
+        pending = records['approval']
+        self.assertEqual(pending.data['status'], 'pending_owner_approval')
+        with self.assertRaises(ValueError):
+            self.engine.decide_approval(pending.id, 'mock-worker', 'approved', 'self approval')
+        approved = self.engine.decide_approval(pending.id, 'owner', 'approved', 'reviewed evidence')
+        self.assertEqual(approved.supersedes, pending.id)
+        self.assertEqual(approved.data['result_hash'], records['result'].content_hash)
+        self.assertEqual(pending.data['status'], 'pending_owner_approval')
+        self.assertEqual(self.engine.ledger.task_state(records['task'].id), 'approved')
+        with self.assertRaises(ValueError):
+            self.engine.decide_approval(pending.id, 'owner', 'approved', 'repeat')
+
+    def test_owner_rejection_is_separate_record(self):
+        records = self.engine.run(InventoryAdapter(), self.inputs)
+        decision = self.engine.decide_approval(records['approval'].id,
+                                              'owner', 'rejected', 'insufficient evidence')
+        self.assertEqual(decision.data['status'], 'rejected')
+        self.assertEqual(self.engine.ledger.task_state(records['task'].id), 'rejected')
+        self.assertTrue(records['validation'].data['passed'])
+
+    def test_superseded_review_cannot_authorize_approval(self):
+        records = self.engine.run(InventoryAdapter(), self.inputs)
+        self.engine.revise_review(records['review'].id, 'reviewer-2', 'recheck', 'new concern')
+        with self.assertRaises(ValueError):
+            self.engine.decide_approval(records['approval'].id, 'owner', 'approved', 'old evidence')
+        self.assertEqual(self.engine.ledger.task_state(records['task'].id), 'pending_owner_approval')
+
+    def test_mutable_custom_objects_and_nonfinite_values_rejected(self):
+        for value in (set([1]), object(), float('nan')):
+            with self.assertRaises((TypeError, ValueError)):
+                self.engine.ledger.add('event', {'value': value})
+        self.assertEqual(len(self.engine.ledger.records), 0)
+
+    def test_validation_result_hash_mismatch_rejected(self):
+        class WrongHash(IndependentValidator):
+            def validate(self, result, adapter):
+                finding = super().validate(result, adapter)
+                finding['result_hash'] = 'wrong'
+                return finding
+        engine = Ripley(validator=WrongHash())
+        with self.assertRaises(ValueError):
+            engine.run(InventoryAdapter(), self.inputs)
+        self.assertFalse(any(r.kind == 'approval' for r in engine.ledger.records.values()))
 
 
 if __name__ == '__main__':

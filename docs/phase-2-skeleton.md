@@ -15,6 +15,14 @@ A Validation Check is a factual record that a named validator/version/ruleset ch
 
 The Ledger exposes records through a read-only mapping. This is a guard against ordinary direct replacement/deletion, not tamper-resistant storage, and not an authentication boundary. Snapshot contents and Result contents are frozen in memory.
 
+## Content links and explicit approval
+
+Records carry SHA-256 of canonical JSON containing kind, frozen data and supersedes. The record envelope's generated ID and timestamp are excluded from that hash; referenced IDs inside data remain included. Supported values are finite JSON scalars, string-keyed mappings and sequences; mutable custom objects are rejected. Hashes establish content identity, not authenticity or production tamper resistance.
+
+Each Validation Check binds the Result hash and the output-contract fingerprint, validator identity/version and ruleset. Rechecking the same Result under the same contract produces the same finding; check record IDs/times can differ. A changed contract or validator creates a new factual check without rewriting an earlier one.
+
+A correction artifact links the original and replacement Result IDs/hashes, requesting reviewer, reason and request ID. Evidence links Task, Snapshot, Result, Validation and Review by ID and content hash. Automatic validation creates only a pending approval request. `decide_approval` requires an explicit owner-labeled approve/reject decision and reason, appends a decision superseding the pending record and appends the resulting task-state transition. Approval binds the existing evidence and Result; a superseded review cannot authorize it. This prototype does not authenticate the caller's owner label. A revised review requires a future refreshed-evidence workflow; no automatic reapproval is implemented. The demo deliberately stops pending approval.
+
 ## Failure-mode maturity
 
 | Mode | Status | Current behavior / limit |
@@ -29,9 +37,12 @@ The Ledger exposes records through a read-only mapping. This is a guard against 
 
 ## Test evidence
 
-Committed tests: 15 unittest test methods in `tests/test_skeleton.py`.
-Command to execute against a checkout of this PR branch: `python -m unittest discover -s tests -v`.
-**Committed GitHub branch test execution has not been independently verified by CI.** Do not treat presence of tests as a passing result. Independent checkout/run and adversarial review are required before merge.
+Local verification on November 6, 2026, after rebasing onto Phase 1 merge `681426328dd4c76af631198e0fe4066ab998a757`:
+- `python3 -m unittest discover -s tests -v`: **23 tests passed**, zero failures/errors (0.008 seconds).
+- `python3 -m demo`: exit 0; reorder True, projected stock 2, validation True, approval pending_owner_approval.
+- `git diff --check`: exit 0, no whitespace errors.
+
+Tests cover adapter-owned facts, deterministic validation against a specific Result and contract, independent approval/rejection, content hashes, original-result preservation, linked corrections, immutable history, bounded exhaustion and worker failure. Repeated approval is rejected by task-state eligibility; this is **not** duplicate-task/idempotency protection. No GitHub CI or independent reviewer execution is claimed. Independent adversarial review remains required.
 
 ## Known limitations and Phase 1 alignment
 
