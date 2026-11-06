@@ -46,6 +46,7 @@ class Ledger:
     """Append-only through public methods; read-only view prevents direct replacement."""
     def __init__(self):
         self._records = {}
+        self._task_index = {}
 
     @property
     def records(self):
@@ -57,11 +58,18 @@ class Ledger:
             if previous.kind != kind or kind not in ('review', 'event_assessment', 'classification', 'approval'):
                 raise ValueError('only judgments may supersede judgments of the same kind')
         frozen = freeze(data)
+        task_key = frozen['task_key'] if kind == 'task' else None
         digest = content_hash({'kind': kind, 'data': frozen, 'supersedes': supersedes})
         record = Record(str(uuid.uuid4()), kind, datetime.now(timezone.utc).isoformat(),
                         frozen, supersedes, digest)
         self._records[record.id] = record
+        if kind == 'task':
+            self._task_index[task_key] = record.id
         return record
+
+    def task_for_key(self, task_key):
+        task_id = self._task_index.get(task_key)
+        return self._records[task_id] if task_id is not None else None
 
     def task_state(self, task_id):
         task = self._records[task_id]
@@ -125,12 +133,22 @@ class Ripley:
             raise PermissionError('worker not allowed')
         if worker is self.validator or worker.identity == self.validator.identity:
             raise PermissionError('worker cannot independently validate its own result')
+        inputs = freeze(inputs)
+        task_type = 'predict'
+        task_key = content_hash({'domain_id': adapter.domain_id,
+            'domain_version': adapter.version, 'task_type': task_type, 'inputs': inputs})
+        existing = self.ledger.task_for_key(task_key)
+        if existing is not None and self.ledger.task_state(existing.id) not in ('blocked', 'approved', 'rejected'):
+            self.ledger.add('duplicate_submission', {'task_key': task_key, 'task_id': existing.id})
+            return self._run_return('duplicate_of_existing_task', task=existing)
         # Domain adapter owns snapshot provenance and data-quality declarations.
         metadata = adapter.snapshot_metadata(inputs)
         snapshot = self.ledger.add('snapshot', {'domain_id': adapter.domain_id, 'inputs': inputs,
             'observed_at': metadata['observed_at'], 'sources': metadata['sources'],
             'data_quality': metadata['data_quality'], 'domain_version': adapter.version})
-        task = self.ledger.add('task', {'domain_id': adapter.domain_id, 'task_type': 'predict',
+        task = self.ledger.add('task', {'domain_id': adapter.domain_id, 'task_type': task_type,
+            'domain_version': adapter.version, 'task_key': task_key,
+            'previous_task_id': existing.id if existing is not None else None,
             'input_snapshot_id': snapshot.id, 'dependencies': [], 'allowed_workers': allowed_workers,
             'expected_output': tuple(adapter.expected_output), 'validation_requirements': ('independent',),
             'evidence_requirements': ('linked-records',), 'resource_ceiling': 'no external calls',

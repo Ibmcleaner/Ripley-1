@@ -1,5 +1,5 @@
 import unittest
-from ripley.core import Ripley, MockWorker, IndependentValidator, content_hash
+from ripley.core import Ripley, MockWorker, IndependentValidator, content_hash, Ledger
 from ripley.synthetic import InventoryAdapter
 
 
@@ -265,6 +265,112 @@ class SkeletonTests(unittest.TestCase):
         transition = list(engine.ledger.records.values())[-1]
         self.assertEqual(transition.data['reason'], 'validation_failure')
         self.assertIsNone(records['approval'])
+
+    def test_pending_duplicate_creates_only_submission_record(self):
+        adapter = InventoryAdapter()
+        first = self.engine.run(adapter, self.inputs)
+        count = len(self.engine.ledger.records)
+        # Duplicate detection must precede timestamp-bearing snapshot metadata.
+        adapter.snapshot_metadata = lambda inputs: self.fail('duplicate created snapshot metadata')
+        second = self.engine.run(adapter, dict(reversed(list(self.inputs.items()))))
+        self.assertEqual(second['outcome'], 'duplicate_of_existing_task')
+        self.assertIs(second['task'], first['task'])
+        self.assertEqual(len(self.engine.ledger.records), count + 1)
+        self.assertEqual(sum(r.kind == 'task' for r in self.engine.ledger.records.values()), 1)
+        self.assertEqual(sum(r.kind == 'snapshot' for r in self.engine.ledger.records.values()), 1)
+        duplicate = list(self.engine.ledger.records.values())[-1]
+        self.assertEqual(duplicate.kind, 'duplicate_submission')
+        self.assertEqual(duplicate.data['task_id'], first['task'].id)
+        self.assertIsNone(second['snapshot'])
+        for name in ('results', 'validations', 'reviews', 'corrections'):
+            self.assertEqual(second[name], ())
+        self.assertEqual(set(first), set(second))
+
+    def test_blocked_task_allows_new_task_and_attempt_lineage(self):
+        class FailingWorker(MockWorker):
+            def produce(self, task, snapshot, adapter):
+                raise RuntimeError('blocked')
+        first = self.engine.run(InventoryAdapter(), self.inputs, worker=FailingWorker())
+        second = self.engine.run(InventoryAdapter(), self.inputs)
+        self.assertEqual(first['outcome'], 'blocked_worker_failure')
+        self.assertEqual(second['outcome'], 'pending_owner_approval')
+        self.assertNotEqual(first['task'].id, second['task'].id)
+        self.assertEqual(first['task'].data['task_key'], second['task'].data['task_key'])
+        self.assertEqual(second['task'].data['previous_task_id'], first['task'].id)
+        self.assertNotEqual(first['attempt'].id, second['attempt'].id)
+        self.assertEqual(second['attempt'].data['task_id'], second['task'].id)
+        self.assertEqual(self.engine.ledger.task_state(first['task'].id), 'blocked')
+        self.assertEqual(sum(r.kind == 'task' for r in self.engine.ledger.records.values()), 2)
+        third = self.engine.run(InventoryAdapter(), self.inputs)
+        self.assertEqual(third['task'].id, second['task'].id)
+        self.assertEqual(third['outcome'], 'duplicate_of_existing_task')
+
+    def test_different_inputs_and_domain_versions_have_different_keys(self):
+        first = self.engine.run(InventoryAdapter(), self.inputs)
+        second = self.engine.run(InventoryAdapter(), {**self.inputs, 'stock': 11})
+        class V2(InventoryAdapter):
+            version = '2'
+        third = self.engine.run(V2(), self.inputs)
+        self.assertEqual(len({r['task'].data['task_key'] for r in (first, second, third)}), 3)
+        self.assertEqual(first['task'].data['task_key'], content_hash({
+            'domain_id': 'synthetic-inventory', 'domain_version': '1',
+            'task_type': 'predict', 'inputs': self.inputs}))
+
+    def test_nested_mapping_order_does_not_change_task_key(self):
+        first = self.engine.run(InventoryAdapter(), {**self.inputs, 'extra': {'a': 1, 'b': 2}})
+        second = self.engine.run(InventoryAdapter(), {'extra': {'b': 2, 'a': 1}, **self.inputs})
+        self.assertEqual(second['outcome'], 'duplicate_of_existing_task')
+        self.assertEqual(first['task'].data['task_key'], second['task'].data['task_key'])
+
+    def test_approved_and_rejected_tasks_allow_resubmission(self):
+        for decision in ('approved', 'rejected'):
+            with self.subTest(decision=decision):
+                engine = Ripley()
+                first = engine.run(InventoryAdapter(), self.inputs)
+                engine.decide_approval(first['approval'].id, 'owner', decision, 'test decision')
+                second = engine.run(InventoryAdapter(), self.inputs)
+                self.assertEqual(second['outcome'], 'pending_owner_approval')
+                self.assertNotEqual(first['task'].id, second['task'].id)
+                self.assertEqual(second['task'].data['previous_task_id'], first['task'].id)
+
+    def test_all_run_returns_have_same_keys_and_tuple_collections(self):
+        class BadWorker(MockWorker):
+            def produce(self, task, snapshot, adapter):
+                return {'bad': True}
+        class FailedWorker(MockWorker):
+            def produce(self, task, snapshot, adapter):
+                raise RuntimeError('worker failed')
+        class FailedValidator(IndependentValidator):
+            def validate(self, result, adapter):
+                raise RuntimeError('validation failed')
+        pending = self.engine.run(InventoryAdapter(), self.inputs)
+        cases = [pending, self.engine.run(InventoryAdapter(), self.inputs),
+                 Ripley().run(InventoryAdapter(), self.inputs, worker=BadWorker()),
+                 Ripley().run(InventoryAdapter(), self.inputs, worker=FailedWorker()),
+                 Ripley(validator=FailedValidator()).run(InventoryAdapter(), self.inputs)]
+        self.assertEqual({r['outcome'] for r in cases}, {'pending_owner_approval',
+            'duplicate_of_existing_task', 'blocked_budget_exhausted',
+            'blocked_worker_failure', 'blocked_validation_failure'})
+        for result in cases:
+            self.assertEqual(set(result), set(pending))
+            for name in ('results', 'validations', 'reviews', 'corrections'):
+                self.assertIsInstance(result[name], tuple)
+
+    def test_review_creation_exception_preserves_completed_validation(self):
+        class ReviewFailureLedger(Ledger):
+            def add(self, kind, data, supersedes=None):
+                if kind == 'review':
+                    raise RuntimeError('review unavailable')
+                return super().add(kind, data, supersedes)
+        engine = Ripley(ledger=ReviewFailureLedger())
+        records = engine.run(InventoryAdapter(), self.inputs)
+        self.assertEqual(records['outcome'], 'blocked_validation_failure')
+        self.assertEqual(records['failure'].data['stage'], 'validation')
+        self.assertEqual(records['failure'].data['message'], 'review unavailable')
+        self.assertEqual(len(records['validations']), 1)
+        self.assertTrue(records['validations'][0].data['passed'])
+        self.assertEqual(records['reviews'], ())
+        self.assertEqual(engine.ledger.task_state(records['task'].id), 'blocked')
 
 
 if __name__ == '__main__':
