@@ -304,7 +304,6 @@ class RecoveryContract(RecoveryFixtures):
         for policy in ('safe', 'no', 'unknown'):
             with self.subTest(policy=policy):
                 self.adapter.replay_policy = policy
-                # Distinct inputs avoid an active previously recovered Task.
                 inputs = {**self.inputs, 'stock': 10 + len(self.records('task'))}
                 run = self.engine().run(self.adapter, inputs, worker=SlowWorker(self.clock))
                 self.assertEqual(run['outcome'], 'blocked_timeout')
@@ -329,6 +328,20 @@ class RecoveryContract(RecoveryFixtures):
         }
         for name, digest in expected.items():
             self.assertEqual(hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest(), digest)
+
+
+    def test_p4_15_active_key_blocks_recovery(self):
+        task, _, _ = self.interrupt()
+        engine = self.engine()
+        newer = engine.run(self.adapter, self.inputs)
+        self.assertEqual(newer['outcome'], 'pending_owner_approval')
+        self.unchanged_rejection(lambda: self.recover(task),
+                                message='active task exists for this key')
+        engine.decide_approval(newer['approval'].id, 'owner', 'approved', 'fixture approval')
+        recovered = self.recover(task)
+        self.assertEqual(recovered['outcome'], 'pending_owner_approval')
+        self.assertEqual(recovered['task'].data['previous_task_id'], newer['task'].id)
+        self.assertEqual(recovered['task'].data['recovers_task_id'], task.id)
 
 
 class MemoryRecoveryTests(RecoveryContract, unittest.TestCase):

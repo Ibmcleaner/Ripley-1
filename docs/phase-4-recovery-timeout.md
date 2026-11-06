@@ -16,15 +16,15 @@ On SQLite open, integrity verification still precedes all writes. In the restart
 
 > Ripley detects and records deadline overrun; it does not preemptively cancel worker execution
 
-Explicit recovery and ordinary submissions share the same execution loop. Recovery creates a new Snapshot copying the original inputs, observation time, sources, quality, and domain version, and adds `replays_snapshot_id`. It never calls `adapter.snapshot_metadata()`. New Task B references A through both `previous_task_id` and `recovers_task_id`; its first Attempt references A's latest Attempt, or None if A had none. Later correction Attempts have no replay reference. A stays blocked and its history is unchanged.
+Explicit recovery and ordinary submissions share the same execution loop. Recovery creates a new Snapshot copying the original inputs, observation time, sources, quality, and domain version, and adds `replays_snapshot_id`. It never calls `adapter.snapshot_metadata()`. New Task B references the newest Task for its key through `previous_task_id` and the recovered Task A through `recovers_task_id`; its first Attempt references A's latest Attempt, or None if A had none. Later correction Attempts have no replay reference. A stays blocked and its history is unchanged. Task B's `replay_policy` is read from the adapter at recovery time, not copied from A.
 
-Every run/recovery return has the same keys, including `authorization` (None outside recovery). The collections `results`, `validations`, `reviews`, and `corrections` remain tuples. Explicit recovery does not use the ordinary submission duplicate guard. Recovery authorization does not approve the Result; successful execution still waits for owner approval.
+Every run/recovery return has the same keys, including `authorization` (None outside recovery). The collections `results`, `validations`, `reviews`, and `corrections` remain tuples. Explicit recovery rejects an active newest Task for the same key without appending a duplicate-submission record. Recovery authorization does not approve the Result; successful execution still waits for owner approval.
 
 ## Recovery check order
 
 `recover(blocked_task_id, actor, reason, adapter, worker=None, allowed_workers=('mock-worker',), correction_budget=1)` performs these checks:
 
-1. The identified record exists, is a Task, and has derived state `blocked`.
+1. The identified record exists, is a Task, and has derived state `blocked`. Immediately afterward, look up the newest Task for its key; if its state is not `blocked`, `approved`, or `rejected`, raise `ValueError('active task exists for this key')` without appending any record, before checking failure eligibility.
 2. The latest Execution Failure for that Task has stage `interrupted` or `timeout`, and the Task has no `correction_budget_exhaustion` record. Otherwise raise `ValueError('recovery not eligible for this failure')`.
 3. The recorded replay policy is `safe`; missing means unknown and rejects.
 4. The recorded resource ceiling is exactly `'no external calls'`.
@@ -51,6 +51,7 @@ After successful checks, append `recovery_authorization` containing the blocked 
 | Explicit recovery | IMPLEMENTED (pure/local only) | All gates precede authorization; new lineage replays the original observation |
 | Recovery-budget exhaustion | IMPLEMENTED | Derived lineage count; one exhaustion record per refused request; no new Task/Attempt |
 | Authorization-then-crash | IMPLEMENTED (fail closed) | Orphan authorization consumes budget; A stays blocked; no automatic resumption or cleanup record; owner may make a normal new submission |
+| P4-15: active key blocks recovery | IMPLEMENTED | Active newest Task rejects recovery without writes; after its owner approval, B links `previous_task_id` to the newest Task and `recovers_task_id` to A |
 | Preemptive cancellation | DEFERRED | A synchronous worker that does not return cannot be stopped by this implementation |
 | Result after an already-recorded failure | DESIGN ONLY | No `late_result` handling code |
 
@@ -58,10 +59,10 @@ After successful checks, append `recovery_authorization` containing the blocked 
 
 November 6, 2026, ChatGPT-local verification:
 
-- `python3 -m unittest discover -s tests -v`: **98 tests passed in 1.932s; zero failures/errors**.
+- `python3 -m unittest discover -s tests -v`: **100 tests passed in 1.609s; zero failures/errors**.
 - The existing 62 parameterized skeleton tests and 11 durability tests pass unchanged. Both existing test files are byte-identical to baseline `0d83554`; no Phase 2/3 test body or fixture changed.
-- P4-01 through P4-14 match the ADR numbering. Eleven shared cases execute against both ledgers through `patch.dict`; P4-10, P4-12 and P4-14 are SQLite-only: `73 + (11 × 2) + 3 = 98`.
-- P4-13 checks discovery counts and baseline source hashes; the same full discovery command executes the 73 regression cases alongside the Phase 4 tests. It does not run a hidden nested copy of the suite.
+- P4-01 through P4-15 match the ADR numbering. Twelve shared cases execute against both ledgers through `patch.dict`; P4-10, P4-12 and P4-14 are SQLite-only: `73 + (12 × 2) + 3 = 100`.
+- P4-13 checks discovery counts and baseline source hashes; the same full discovery command executes the 73 regression cases alongside the Phase 4 tests. It does not run a hidden nested copy of the suite. P4-13’s hashes must be updated whenever the Phase 2/3 test files legitimately change.
 - Coverage includes legacy absent policy, absent Attempt references, rejection without writes, binding/worker/actor checks, preserved record bytes, independent budgets, strict deadline equality, latest-Attempt selection, immutable snapshot values, SQLite reopening, and authorization-before-crash budget consumption.
 - Controlled clock calls and patched open-time datetime avoid sleeps or killed processes. SQLite interruption fixtures stop between direct ledger calls and reopen. In-memory fixtures append the equivalent interruption failure and blocked transition directly, since the in-memory ledger has no reopen operation.
 

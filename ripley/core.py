@@ -183,6 +183,9 @@ class Ripley:
         task = self.ledger.records.get(blocked_task_id)
         if task is None or task.kind != 'task' or self.ledger.task_state(task.id) != 'blocked':
             raise ValueError('blocked task required')
+        current = self.ledger.task_for_key(task.data['task_key'])
+        if current is not None and self.ledger.task_state(current.id) not in ('blocked', 'approved', 'rejected'):
+            raise ValueError('active task exists for this key')
         records = tuple(self.ledger.records.values())
         failures = [r for r in records if r.kind == 'execution_failure'
                     and r.data['task_id'] == task.id]
@@ -225,13 +228,15 @@ class Ripley:
             'resource_ceiling_cited': task.data['resource_ceiling']})
         snapshot = self.ledger.records[task.data['input_snapshot_id']]
         outcome = self._execute(adapter, snapshot.data['inputs'], worker, allowed_workers,
-                                correction_budget, timeout, task.data['task_key'], task,
-                                replay_snapshot=snapshot, replay_attempt_id=replay_attempt_id)
+                                correction_budget, timeout, task.data['task_key'], current,
+                                replay_snapshot=snapshot, replay_attempt_id=replay_attempt_id,
+                                recovers_task_id=task.id)
         outcome['authorization'] = authorization
         return outcome
 
     def _execute(self, adapter, inputs, worker, allowed_workers, correction_budget,
-                 timeout, task_key, existing, replay_snapshot=None, replay_attempt_id=None):
+                 timeout, task_key, existing, replay_snapshot=None, replay_attempt_id=None,
+                 recovers_task_id=None):
         if replay_snapshot is None:
             # Domain adapter owns snapshot provenance and data-quality declarations.
             metadata = adapter.snapshot_metadata(inputs)
@@ -250,7 +255,7 @@ class Ripley:
         task = self.ledger.add('task', {'domain_id': adapter.domain_id, 'task_type': task_type,
             'domain_version': adapter.version, 'task_key': task_key,
             'previous_task_id': existing.id if existing is not None else None,
-            'recovers_task_id': existing.id if replay_snapshot is not None else None,
+            'recovers_task_id': recovers_task_id,
             'replay_policy': policy,
             'input_snapshot_id': snapshot.id, 'dependencies': [], 'allowed_workers': allowed_workers,
             'expected_output': tuple(adapter.expected_output), 'validation_requirements': ('independent',),

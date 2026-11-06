@@ -123,6 +123,7 @@ These are required future acceptance tests, not claims of executed tests. The nu
 | P4-12 | Recovery lineage survives SQLite close/reopen without retriggering on open |
 | P4-13 | Existing Phase 2 and Phase 3 regression suites remain unchanged and passing as applicable |
 | P4-14 | Authorization recorded, then close before Task B exists → reopen → Task A unchanged, no Task B, `recover()` refused with `recovery_budget_exhaustion`. |
+| P4-15 | Active newest Task for the same key → recovery rejected with `active task exists for this key`, no records appended; after owner approval of that Task, recovery succeeds with `previous_task_id` referencing the newest Task and `recovers_task_id` referencing the original blocked Task. |
 
 ### DEFERRED
 
