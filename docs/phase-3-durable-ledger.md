@@ -1,6 +1,6 @@
 # Phase 3 — Durable Ledger & Restart Honesty
 
-Status: **IMPLEMENTED prototype, ChatGPT-locally tested; awaiting Claude review and owner acceptance. NOT production validated.**
+Status: **IMPLEMENTED prototype, locally tested, reviewed by Claude at 9eecf01, merged by owner at 16ecade. NOT production validated.**
 
 Authority: [Accepted ADR-007](decisions/phase-3-adrs.md). No automatic recovery or re-execution is implemented.
 
