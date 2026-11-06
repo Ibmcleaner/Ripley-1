@@ -1,9 +1,13 @@
 import unittest
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+from ripley.storage import SQLiteLedger
 from ripley.core import Ripley, MockWorker, IndependentValidator, content_hash, Ledger
 from ripley.synthetic import InventoryAdapter
 
 
-class SkeletonTests(unittest.TestCase):
+class SkeletonContract:
     def setUp(self):
         self.engine = Ripley()
         self.inputs = {'stock': 10, 'demand': 8, 'threshold': 5}
@@ -371,6 +375,34 @@ class SkeletonTests(unittest.TestCase):
         self.assertTrue(records['validations'][0].data['passed'])
         self.assertEqual(records['reviews'], ())
         self.assertEqual(engine.ledger.task_state(records['task'].id), 'blocked')
+
+
+class MemorySkeletonTests(SkeletonContract, unittest.TestCase):
+    pass
+
+
+class SQLiteSkeletonTests(SkeletonContract, unittest.TestCase):
+    def setUp(self):
+        # patch.dict makes Ledger and Ripley names in the shared test bodies
+        # resolve to the SQLite variants for this test, without changing those bodies.
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        paths = iter(range(100))
+        original_ripley = Ripley
+
+        class TestLedger(SQLiteLedger):
+            def __init__(self):
+                super().__init__(Path(directory.name) / f'ledger-{next(paths)}.sqlite')
+
+        class TestRipley(original_ripley):
+            def __init__(self, ledger=None, validator=None):
+                super().__init__(ledger=ledger if ledger is not None else TestLedger(),
+                                 validator=validator)
+
+        replacements = patch.dict(globals(), {'Ledger': TestLedger, 'Ripley': TestRipley})
+        replacements.start()
+        self.addCleanup(replacements.stop)
+        super().setUp()
 
 
 if __name__ == '__main__':
