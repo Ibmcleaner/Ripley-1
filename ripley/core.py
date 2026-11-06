@@ -94,7 +94,7 @@ class Ripley:
         self.validator = validator if validator is not None else IndependentValidator()
 
     def run(self, adapter, inputs, worker=None, allowed_workers=('mock-worker',),
-            correction_budget=1, task_key=None):
+            correction_budget=1):
         if type(correction_budget) is not int or correction_budget < 0:
             raise ValueError('correction_budget must be a nonnegative integer')
         worker = worker if worker is not None else MockWorker()
