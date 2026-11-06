@@ -25,7 +25,7 @@ The Ledger exposes records through a read-only mapping. This is a guard against 
 | Correction-budget exhaustion | IMPLEMENTED | Explicit exhaustion record and blocked transition; no further attempt |
 | Timeout | DEFERRED | No deadline enforcement or cancellation |
 | Restart/recovery | DEFERRED | In-memory records are lost on process restart |
-| Duplicate task/idempotency | DEFERRED — **Phase 2 acceptance item P2-IDEMPOTENCY-001** | Decide deterministic task key, input equality/conflict policy, and in-memory duplicate guard before Phase 2 acceptance; recovered queue concepts are not implemented |
+| Duplicate task/idempotency | PLANNED / REQUIRED BEFORE PHASE 2 ACCEPTANCE — **P2-IDEMPOTENCY-001** | Next named Phase 2 acceptance item, after execution-attempt/failure, task-transition, and bounded-correction primitives are stabilized and reviewed. Define deterministic task key, input equality/conflict policy, and in-memory duplicate guard; implement and test before Phase 2 acceptance. Not implemented or tested in this correction pass |
 
 ## Test evidence
 
@@ -35,6 +35,6 @@ Command to execute against a checkout of this PR branch: `python -m unittest dis
 
 ## Known limitations and Phase 1 alignment
 
-No database, external AI provider, NFL implementation, RAG, autonomous security/debug agents, self-modifying learning, or live-event monitoring. No persistence, durable audit, secure worker identity, authorization, timeout enforcement, replay recovery, duplicate guard, event assessment workflow, outcome/grade/classification pipeline, or factual correction implementation. A worker exception is captured; validator/review internal exceptions are not yet normalized as failures. Validation checks are factual observations of checks, not guarantees of truth.
+No database, external AI provider, NFL implementation, RAG, autonomous security/debug agents, self-modifying learning, or live-event monitoring. No persistence, durable audit, secure worker identity, authorization, timeout enforcement, replay recovery, duplicate-task/idempotency guard (required before Phase 2 acceptance), event assessment workflow, outcome/grade/classification pipeline, or factual correction implementation. A worker exception is captured; validator/review internal exceptions are not yet normalized as failures. Validation checks are factual observations of checks, not guarantees of truth.
 
 Phase 1 contracts are conceptual and do not prescribe complete state transitions or validation schemas. The added append-only state transitions and factual validation checks refine those contracts without changing the record principle. **In-memory storage is not production durability.**
