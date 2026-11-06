@@ -1,6 +1,6 @@
 # Phase 2: first executable skeleton — review correction pass
 
-Status: **IMPLEMENTED prototype, NOT production validated, NOT ready to merge pending independent review.**
+Status: **IMPLEMENTED prototype, locally tested, reviewed by Claude at 879c245 — awaiting owner merge. NOT production validated.**
 
 Run: `python -m demo`
 Tests: `python -m unittest discover -s tests -v`
@@ -56,6 +56,8 @@ Local verification on November 6, 2026, after rebasing onto Phase 1 merge `68142
 - `python3 -m unittest discover -s tests -v`: **31 tests passed**, zero failures/errors (full output reported in the PR handoff).
 - `python3 -m demo`: exit 0; reorder True, projected stock 2, validation True, approval pending_owner_approval.
 - `git diff --check`: exit 0, no whitespace errors.
+
+Independent execution by a second party has not occurred; test results above are ChatGPT-local.
 
 Tests cover adapter-owned facts, deterministic validation against a specific Result and contract, independent approval/rejection, content hashes, original-result preservation, linked corrections, immutable history, bounded exhaustion and worker failure. Additional tests cover validator/review exceptions, uniform returns, pending duplicates, terminal resubmission, different inputs/versions, and nested mapping-order invariance. No GitHub CI or independent reviewer execution is claimed. Independent adversarial review remains required.
 
