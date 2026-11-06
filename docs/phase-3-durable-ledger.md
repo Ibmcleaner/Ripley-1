@@ -43,14 +43,14 @@ Active task duplicates continue to reference the existing task. A task blocked b
 
 November 6, 2026, local verification:
 
-- `python3 -m unittest discover -s tests -v`: 72 tests passed in 1.043s; zero failures/errors. 31 existing test bodies run against Ledger and again against SQLiteLedger (62), plus ten numbered ADR tests (10).
+- `python3 -m unittest discover -s tests -v`: 73 tests passed in 1.091s; zero failures/errors. 31 existing test bodies run against Ledger and again against SQLiteLedger (62), plus eleven numbered ADR tests (11).
 - `tests/test_durable.py`: test_p3_01 through test_p3_10 correspond to the ADR table. Interruption fixtures stop between ledger calls, without killing processes. Test 01 also verifies storage order versus transition lineage, exact canonical stored bytes, and missing task-key rejection. Test 06 covers all three interrupted states.
 - The parameterization uses only fixture/class wiring: all 31 Phase 2 test method sources were compared to main and are byte-for-byte unchanged. Fresh temporary database paths isolate every test and every additional ledger created inside a test.
 - ADR documentation was checked byte-for-byte against the supplied attachment.
 
 Independent execution by a second party has not occurred; test results above are ChatGPT-local.
 
-No CI or independent code-review outcome is claimed for Phase 3. Acceptance and merge remain with the reviewer and owner.
+Claude code review completed at 9eecf01; owner merged at 16ecade. No CI or independent test execution is claimed.
 
 ## Limits
 

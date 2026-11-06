@@ -6,7 +6,7 @@ These records continue [ADR-001 through ADR-006](phase-1-adrs.md) and [ADR-007](
 
 ## ADR-008 — Explicit recovery and timeout detection
 
-Status: **DESIGNED — formal ADR pending Claude and Copilot review.** Rob reports the Phase 4 whiteboard review completed by Rob, Copilot, and Claude. This record captures that supplied direction; it does not claim acceptance of this commit.
+Status: **ACCEPTED — reviewed by Claude at 9a82f59 with the implementation contracts above; awaiting owner merge.**
 
 Implementation status: **NOT STARTED. Documentation only.**
 Recorded: 2026-11-06
@@ -89,6 +89,14 @@ The required maturity statement is:
 
 A synchronous worker that never returns cannot be cancelled by this design. No threads, process pools, or asynchronous execution are introduced to enforce a deadline.
 
+#### Implementation contracts (resolved at review)
+
+- **Legacy tasks:** a Task record with no `replay_policy` field reads as `unknown`. No migration or backfill; `recover()` rejects such tasks.
+- **Nullable replay reference:** `replays_attempt_id` and `recovery_authorization.interrupted_attempt_id` are `None` when the blocked task was interrupted before any Execution Attempt. Lineage remains complete via `recovers_task_id`. Never invent an attempt; never refuse recovery solely because no attempt exists.
+- **Budget accounting is derived:** recovery budget consumed = count of `recovery_authorization` records whose `blocked_task_id` is in the lineage chain (walk `recovers_task_id` to the root). Never stored separately.
+- **Crash between authorization and new lineage:** on reopen, Task A remains `blocked`; the orphan `recovery_authorization` counts against the budget, so the next `recover()` is refused with `recovery_budget_exhaustion`. No automatic resumption, no cleanup record, no special state. The owner’s path is a normal new submission.
+- **Adapter binding:** `recover(blocked_task_id, actor, reason, adapter, worker=None)` applies the Phase 2 allowlist and self-validation checks and raises `ValueError` unless `adapter.domain_id` and `adapter.version` equal Task A’s recorded values.
+
 ### DESIGN ONLY — Result arriving after a recorded failure
 
 For future isolated/concurrent execution, a Result associated with an Attempt that already has an `execution_failure` is recorded as `late_result`. It remains factual history, is never validated or promoted, and consumes neither correction nor recovery budget.
@@ -114,6 +122,7 @@ These are required future acceptance tests, not claims of executed tests. The nu
 | P4-11 | Timed-out Task: `safe` permits explicit recovery if remaining gates pass; `no`/`unknown` reject it |
 | P4-12 | Recovery lineage survives SQLite close/reopen without retriggering on open |
 | P4-13 | Existing Phase 2 and Phase 3 regression suites remain unchanged and passing as applicable |
+| P4-14 | Authorization recorded, then close before Task B exists → reopen → Task A unchanged, no Task B, `recover()` refused with `recovery_budget_exhaustion`. |
 
 ### DEFERRED
 
