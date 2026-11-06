@@ -150,8 +150,9 @@ class Ripley:
                     'attempt_id': attempt.id, 'exception_type': type(exc).__name__,
                     'message': str(exc)})
                 self.ledger.transition(task.id, 'running', 'blocked', 'ripley', 'worker_failure')
-                return {'task': task, 'snapshot': snapshot, 'attempt': attempt,
-                        'failure': failure, 'results': tuple(results)}
+                return self._run_return('blocked_worker_failure', task=task,
+                    snapshot=snapshot, attempt=attempt, failure=failure,
+                    results=results, validations=validations, reviews=reviews, corrections=corrections)
             result = self.ledger.add('result', {'task_id': task.id, 'attempt_id': attempt.id,
                 'input_snapshot_id': snapshot.id, 'worker': worker.identity, 'output': output,
                 'evidence': (), 'warnings': (), 'execution': 'deterministic', 'cost': 0})
@@ -164,19 +165,28 @@ class Ripley:
                     'reason': request.data['reason'], 'original_result_id': previous.id,
                     'original_result_hash': previous.content_hash,
                     'corrected_result_id': result.id, 'corrected_result_hash': result.content_hash})
-            finding = self.validator.validate(result, adapter)
-            if (finding.get('result_id') != result.id or
-                    finding.get('result_hash') != result.content_hash or
-                    finding.get('validator') != self.validator.identity):
-                raise ValueError('validation provenance mismatch')
-            validation = self.ledger.add('validation', finding)
-            validations.append(validation)
-            review = self.ledger.add('review', {'result_id': result.id, 'validation_id': validation.id,
-                'reviewer': 'ripley-review-policy',
-                'result_hash': result.content_hash, 'validation_hash': validation.content_hash,
-                'reason': 'output shape passed' if finding['passed'] else 'invalid output structure',
-                'decision': 'acceptable' if finding['passed'] else 'correction_required'})
-            reviews.append(review)
+            try:
+                finding = self.validator.validate(result, adapter)
+                if (finding.get('result_id') != result.id or
+                        finding.get('result_hash') != result.content_hash or
+                        finding.get('validator') != self.validator.identity):
+                    raise ValueError('validation provenance mismatch')
+                validation = self.ledger.add('validation', finding)
+                validations.append(validation)
+                review = self.ledger.add('review', {'result_id': result.id, 'validation_id': validation.id,
+                    'reviewer': 'ripley-review-policy',
+                    'result_hash': result.content_hash, 'validation_hash': validation.content_hash,
+                    'reason': 'output shape passed' if finding['passed'] else 'invalid output structure',
+                    'decision': 'acceptable' if finding['passed'] else 'correction_required'})
+                reviews.append(review)
+            except Exception as exc:
+                failure = self.ledger.add('execution_failure', {'task_id': task.id,
+                    'stage': 'validation', 'attempt_id': attempt.id,
+                    'exception_type': type(exc).__name__, 'message': str(exc)})
+                self.ledger.transition(task.id, 'running', 'blocked', 'ripley', 'validation_failure')
+                return self._run_return('blocked_validation_failure', task=task,
+                    snapshot=snapshot, attempt=attempt, result=result, failure=failure,
+                    results=results, validations=validations, reviews=reviews, corrections=corrections)
             if finding['passed']:
                 self.ledger.transition(task.id, 'running', 'validated', 'ripley', 'review accepted')
                 evidence = self.ledger.add('evidence', {'task_id': task.id, 'snapshot_id': snapshot.id,
@@ -189,11 +199,10 @@ class Ripley:
                     'authority': 'owner', 'status': 'pending_owner_approval'})
                 self.ledger.transition(task.id, 'validated', 'pending_owner_approval',
                                        'ripley', 'awaiting owner')
-                return {'task': task, 'snapshot': snapshot, 'attempt': attempt, 'result': result,
-                        'validation': validation, 'review': review, 'evidence': evidence,
-                        'approval': approval, 'results': tuple(results),
-                        'validations': tuple(validations), 'reviews': tuple(reviews),
-                        'corrections': tuple(corrections)}
+                return self._run_return('pending_owner_approval', task=task,
+                    snapshot=snapshot, attempt=attempt, result=result, validation=validation,
+                    review=review, evidence=evidence, approval=approval,
+                    results=results, validations=validations, reviews=reviews, corrections=corrections)
             if attempt_number < correction_budget:
                 corrections.append(self.ledger.add('correction_request', {
                     'task_id': task.id, 'rejected_result_id': result.id,
@@ -205,10 +214,20 @@ class Ripley:
                     'task_id': task.id, 'last_result_id': result.id, 'budget': correction_budget})
                 self.ledger.transition(task.id, 'running', 'blocked', 'ripley',
                                        'correction_budget_exhausted')
-                return {'task': task, 'snapshot': snapshot, 'result': result,
-                        'validation': validation, 'review': review, 'blocked': blocked,
-                        'results': tuple(results), 'validations': tuple(validations),
-                        'reviews': tuple(reviews), 'corrections': tuple(corrections)}
+                return self._run_return('blocked_budget_exhausted', task=task,
+                    snapshot=snapshot, attempt=attempt, result=result, validation=validation,
+                    review=review, blocked=blocked,
+                    results=results, validations=validations, reviews=reviews, corrections=corrections)
+
+    @staticmethod
+    def _run_return(outcome, *, task, snapshot=None, attempt=None, result=None,
+                    validation=None, review=None, evidence=None, approval=None,
+                    failure=None, blocked=None, results=(), validations=(), reviews=(), corrections=()):
+        return {'outcome': outcome, 'task': task, 'snapshot': snapshot, 'attempt': attempt,
+                'result': result, 'validation': validation, 'review': review,
+                'evidence': evidence, 'approval': approval, 'failure': failure, 'blocked': blocked,
+                'results': tuple(results), 'validations': tuple(validations),
+                'reviews': tuple(reviews), 'corrections': tuple(corrections)}
 
     def revise_review(self, prior_id, reviewer, decision, reason):
         prior = self.ledger.records[prior_id]

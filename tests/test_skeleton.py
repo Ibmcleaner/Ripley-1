@@ -242,9 +242,29 @@ class SkeletonTests(unittest.TestCase):
                 finding['result_hash'] = 'wrong'
                 return finding
         engine = Ripley(validator=WrongHash())
-        with self.assertRaises(ValueError):
-            engine.run(InventoryAdapter(), self.inputs)
+        records = engine.run(InventoryAdapter(), self.inputs)
+        self.assertEqual(records['outcome'], 'blocked_validation_failure')
+        self.assertEqual(records['failure'].data['exception_type'], 'ValueError')
         self.assertFalse(any(r.kind == 'approval' for r in engine.ledger.records.values()))
+
+    def test_validator_exception_is_recorded(self):
+        class RaisingValidator(IndependentValidator):
+            def validate(self, result, adapter):
+                raise RuntimeError('validator unavailable')
+        engine = Ripley(validator=RaisingValidator())
+        records = engine.run(InventoryAdapter(), self.inputs)
+        self.assertEqual(records['outcome'], 'blocked_validation_failure')
+        self.assertEqual(records['failure'].data['stage'], 'validation')
+        self.assertEqual(records['failure'].data['attempt_id'], records['attempt'].id)
+        self.assertEqual(records['failure'].data['exception_type'], 'RuntimeError')
+        self.assertEqual(records['failure'].data['message'], 'validator unavailable')
+        self.assertEqual(engine.ledger.task_state(records['task'].id), 'blocked')
+        self.assertEqual(len(records['results']), 1)
+        for name in ('validations', 'reviews', 'corrections'):
+            self.assertEqual(records[name], ())
+        transition = list(engine.ledger.records.values())[-1]
+        self.assertEqual(transition.data['reason'], 'validation_failure')
+        self.assertIsNone(records['approval'])
 
 
 if __name__ == '__main__':
