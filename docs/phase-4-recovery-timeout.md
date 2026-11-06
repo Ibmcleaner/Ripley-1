@@ -1,6 +1,6 @@
 # Phase 4 — Explicit recovery and timeout detection
 
-Status: **IMPLEMENTED prototype, ChatGPT-locally tested; awaiting Claude review and owner acceptance. NOT production validated.**
+Status: **IMPLEMENTED prototype, locally tested, reviewed by Claude at c19d613, merged by owner at f271035210d37d3c61d82e6826316010ef3aa7a4. NOT production validated.**
 
 Authority: [ADR-008](decisions/phase-4-adrs.md), including the implementation contracts resolved at review. Baseline: `main` at `0d835540197b56c9bfeb0d601a8e6a46c4c34f39`.
 
@@ -68,7 +68,7 @@ November 6, 2026, ChatGPT-local verification:
 
 Independent execution by a second party has not occurred; test results above are ChatGPT-local.
 
-No Phase 4 independent code review, CI result, owner acceptance, or production validation is claimed.
+Claude code review completed at c19d613; owner merge completed at f271035210d37d3c61d82e6826316010ef3aa7a4. No CI or independent test execution is claimed.
 
 ## Implementation choices not fully specified by the assignment
 
