@@ -25,7 +25,7 @@ A correction artifact links the original and replacement Result IDs/hashes, requ
 
 ## Run return contract
 
-Every `run()` return has the same keys: outcome, task, snapshot, attempt, result, validation, review, evidence, approval, failure, blocked, results, validations, reviews, corrections. Unused single records are `None`; collection fields are always tuples. Outcomes are `pending_owner_approval`, `blocked_worker_failure`, `blocked_validation_failure`, `blocked_budget_exhausted`, and `duplicate_of_existing_task`. The validation-failure outcome names the new failure path explicitly, rather than mislabeling it as a worker failure. Validator calls, validation provenance checks, validation-record creation and review-record creation share the bounded exception handler. Completed records remain preserved if a later stage raises.
+Every `run()` return has the same keys: outcome, task, snapshot, attempt, result, validation, review, evidence, approval, failure, blocked, authorization, results, validations, reviews, corrections. Unused single records are `None`; collection fields are always tuples. Outcomes are `pending_owner_approval`, `blocked_worker_failure`, `blocked_validation_failure`, `blocked_budget_exhausted`, `blocked_timeout`, and `duplicate_of_existing_task`. The validation-failure outcome names the new failure path explicitly, rather than mislabeling it as a worker failure. Validator calls, validation provenance checks, validation-record creation and review-record creation share the bounded exception handler. Completed records remain preserved if a later stage raises.
 
 ## P2-IDEMPOTENCY-001 — in-memory duplicate policy
 
