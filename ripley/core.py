@@ -20,16 +20,19 @@ def freeze(value):
     raise TypeError('records require JSON-compatible values')
 
 
-def content_hash(value):
+def canonical_json(value) -> bytes:
     def plain(v):
         if isinstance(v, Mapping):
             return {k: plain(x) for k, x in v.items()}
         if isinstance(v, (tuple, list)):
             return [plain(x) for x in v]
         return v
-    encoded = json.dumps(plain(value), sort_keys=True, separators=(',', ':'),
-                         allow_nan=False).encode('utf-8')
-    return hashlib.sha256(encoded).hexdigest()
+    return json.dumps(plain(value), sort_keys=True, separators=(',', ':'),
+                      allow_nan=False).encode('utf-8')
+
+
+def content_hash(value):
+    return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -58,7 +61,9 @@ class Ledger:
             if previous.kind != kind or kind not in ('review', 'event_assessment', 'classification', 'approval'):
                 raise ValueError('only judgments may supersede judgments of the same kind')
         frozen = freeze(data)
-        task_key = frozen['task_key'] if kind == 'task' else None
+        task_key = frozen.get('task_key') if kind == 'task' else None
+        if kind == 'task' and task_key is None:
+            raise ValueError('task record requires task_key')
         digest = content_hash({'kind': kind, 'data': frozen, 'supersedes': supersedes})
         record = Record(str(uuid.uuid4()), kind, datetime.now(timezone.utc).isoformat(),
                         frozen, supersedes, digest)
