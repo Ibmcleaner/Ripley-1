@@ -6,7 +6,7 @@ These records continue [ADR-001 through ADR-006](phase-1-adrs.md), [ADR-007](pha
 
 ## ADR-009 — Local Worker process isolation and enforceable deadlines
 
-Status: **ACCEPTED — amended at review (contracts 1, 2, 4, 8) ; awaiting owner merge.**
+Status: **ACCEPTED — amended at review (contracts 1, 2, 4, 8; watchdog margin; late-result provenance); awaiting owner merge.**
 
 Implementation status: **NOT STARTED. Documentation only.**
 
@@ -91,7 +91,7 @@ Wrong-correlation output is discarded. stdout is the protocol channel only: any 
 
 #### Deadline enforcement and termination facts
 
-The engine constants are `TERMINATION_GRACE_SECONDS = 2.0` and `KILL_WAIT_SECONDS = 5.0`.
+The engine constants are `TERMINATION_GRACE_SECONDS = 2.0`, `KILL_WAIT_SECONDS = 5.0`, and `WATCHDOG_MARGIN_SECONDS = 1.0`. The margin guarantees the parent’s `kill()` precedes the child’s self-exit, so the escalation path is real and testable.
 
 When the deadline expires:
 
@@ -115,7 +115,7 @@ The approved P4-15 distinction remains: `previous_task_id` references the newest
 
 #### Narrow late-result handling
 
-If a complete Worker response arrives during the termination grace window after timeout was declared, append `late_result` and preserve it as factual history. Never validate or promote it. It consumes neither correction nor recovery budget. Preserve the timeout failure as well.
+`late_result` may be appended only for a complete, valid, correlated `ok` response returned by the grace-window `communicate(timeout=TERMINATION_GRACE_SECONDS)` call that follows `terminate()`. Output obtained from any later drain after `kill()` is never promoted; it is retained only as `diagnostics.stdout_excerpt` on the timeout failure. Malformed or mis-correlated grace-window output is diagnostics only. Never validate or promote it. It consumes neither correction nor recovery budget. Preserve the timeout failure as well.
 
 This is limited to the grace-window case. After the final pipe read, close the pipes and accept no additional result. Do not create a general concurrent-result or remote-response subsystem.
 
@@ -144,13 +144,13 @@ These are required future tests, not executed evidence. Preserve these identifie
 | P5-05 | Garbage, partial JSON, or successful exit with no response produces `host_failure` |
 | P5-06 | Wrong `attempt_id` or identity produces `host_failure` and output is discarded |
 | P5-07 | Worker completes after deadline but before the parent's timeout check; existing Phase 4 post-hoc timeout behavior remains intact |
-| P5-08 | Complete response arrives during termination grace window; `late_result` is recorded, never validated or promoted, and timeout failure remains |
+| P5-08 | Complete response arrives during termination grace window; `late_result` is recorded, never validated or promoted, and timeout failure remains; a child that responds only after `kill()` produces no `late_result`. |
 | P5-09 | Timeout with `termination.exited = true` and safe replay policy may be recovered when other gates pass; `termination.exited = false` prohibits recovery |
 | P5-10 | stderr diagnostics are captured and truncated to the fixed cap |
 | P5-11 | Request packet stored for the Attempt uses canonical JSON and the child receives exactly those bytes |
 | P5-12 | Execution mode is explicit and opt-in; existing Phase 2/3/4 behavior passes unchanged inline; applicable recovery behavior passes under subprocess mode |
 | P5-13 | Platform-dependent termination tests use explicit skip conditions; the supported test suite passes on Windows and Linux |
-| P5-14 | subprocess attempt interrupted by restart *after* `execution_request`: `recover()` refused while `clock() ≤ deadline_at + grace + 1s`; succeeds once the clock passes it; an attempt with `deadline_at: None` is refused at any time; and the same rule applied to a restart-classified `timeout` failure (`deadline_exceeded_before_restart`) on a subprocess attempt. |
+| P5-14 | subprocess attempt interrupted by restart *after* `execution_request`: `recover()` refused while `clock() ≤ deadline_at + TERMINATION_GRACE_SECONDS + WATCHDOG_MARGIN_SECONDS + 1 s`; succeeds once the clock passes it; an attempt with `deadline_at: None` is refused at any time; and the same rule applied to a restart-classified `timeout` failure (`deadline_exceeded_before_restart`) on a subprocess attempt. |
 | P5-15 | subprocess attempt interrupted *before* `execution_request` exists → `recover()` eligible immediately (no process ever started). |
 
 A skipped platform-specific termination case is not evidence that its path was exercised. Windows and Linux execution evidence must be reported separately; neither is claimed by this ADR.
@@ -179,16 +179,16 @@ Arbitrary untrusted code; security sandboxing; containers; separate operating-sy
 ### Implementation contracts (resolved at review)
 
 **1. Proof of death after parent crash/restart.**
-Honest baseline: plain `subprocess` does **not** make a child die with its parent on either Linux or Windows. Job Objects (Windows) and `PR_SET_PDEATHSIG` (Linux) would, but both are platform-specific and the latter needs `ctypes`. Not lean. The lean mechanism is a **child-side watchdog**: `worker_host` starts a daemon thread that calls `os._exit(124)` at `deadline_at + TERMINATION_GRACE_SECONDS`. `os._exit` ends the process regardless of what the worker thread is doing, on both platforms, from the stdlib. It is first-party trusted code honoring a contract, which is exactly the security boundary the ADR declares.
+Honest baseline: plain `subprocess` does **not** make a child die with its parent on either Linux or Windows. Job Objects (Windows) and `PR_SET_PDEATHSIG` (Linux) would, but both are platform-specific and the latter needs `ctypes`. Not lean. The lean mechanism is a **child-side watchdog**: `worker_host` starts a daemon thread that calls `os._exit(124)` at `deadline_at + TERMINATION_GRACE_SECONDS + WATCHDOG_MARGIN_SECONDS`. `os._exit` ends the process regardless of what the worker thread is doing, on both platforms, from the stdlib. It is first-party trusted code honoring a contract, which is exactly the security boundary the ADR declares.
 
-Proof-of-death rule for `recover()` on a *subprocess* attempt interrupted by restart: eligible only if the attempt had a `deadline_at` **and** `clock() > deadline_at + TERMINATION_GRACE_SECONDS + 1s` at the time `recover()` is called. Otherwise unconfirmed → refused. A subprocess attempt with no deadline has no watchdog and is **never** confirmable after restart → permanently ineligible; the owner's path is a new submission. The ledger does no PID probing — PID reuse makes it unreliable and the ledger should not make OS calls.
+Proof-of-death rule for `recover()` on a *subprocess* attempt interrupted by restart: eligible only if the attempt had a `deadline_at` **and** `clock() > deadline_at + TERMINATION_GRACE_SECONDS + WATCHDOG_MARGIN_SECONDS + 1 s` at the time `recover()` is called. Otherwise unconfirmed → refused. A subprocess attempt with no deadline has no watchdog and is **never** confirmable after restart → permanently ineligible; the owner's path is a new submission. The ledger does no PID probing — PID reuse makes it unreliable and the ledger should not make OS calls.
 
 Inline attempts are unaffected: no process existed, ADR-008 eligibility stands.
 
-Proof of death for a subprocess attempt is determined by evidence shape, not stage label: (a) no `execution_request` → never spawned → eligible; (b) `termination` present → eligible iff `termination.exited` is true; (c) `completed_at` present with no `termination` (post-hoc) → eligible; (d) open-time classification — stage `interrupted`, or stage `timeout` with message `deadline_exceeded_before_restart`, no `termination` — eligible iff `deadline_at` is set and `clock() > deadline_at + TERMINATION_GRACE_SECONDS + 1 s`; otherwise refused. Ripley has no other proof-of-death mechanism in Phase 5.
+Proof of death for a subprocess attempt is determined by evidence shape, not stage label: (a) no `execution_request` → never spawned → eligible; (b) `termination` present → eligible iff `termination.exited` is true; (c) `completed_at` present with no `termination` (post-hoc) → eligible; (d) open-time classification — stage `interrupted`, or stage `timeout` with message `deadline_exceeded_before_restart`, no `termination` — eligible iff `deadline_at` is set and `clock() > deadline_at + TERMINATION_GRACE_SECONDS + WATCHDOG_MARGIN_SECONDS + 1 s`; otherwise refused. Ripley has no other proof-of-death mechanism in Phase 5.
 
 **2. Grace / final wait / unconfirmed death.**
-Two engine constants, not adapter knobs: `TERMINATION_GRACE_SECONDS = 2.0`, `KILL_WAIT_SECONDS = 5.0`. Sequence: `terminate()` → `communicate(timeout=grace)` → if still running `kill()` → `communicate(timeout=KILL_WAIT_SECONDS)`. If it still hasn't exited: `termination = {requested_at, method: 'kill', exited: false, returncode: null, pid}`. `method` is the **last escalation step requested**. Unconfirmed-dead is not a state; it is the fact `exited: false` on the timeout failure, and `recover()` reads it. It is permanent — no later record can "confirm" it in Phase 5 (a `process_exit_confirmation` record is a possible Phase 6 item; name it, don't build it). Failed launch: `termination: null`, `stage: 'host_failure'`, `launch_error: {type, message}`.
+Three engine constants, not adapter knobs: `TERMINATION_GRACE_SECONDS = 2.0`, `KILL_WAIT_SECONDS = 5.0`, `WATCHDOG_MARGIN_SECONDS = 1.0`. The margin guarantees the parent’s `kill()` precedes the child’s self-exit, so the escalation path is real and testable. Sequence: `terminate()` → `communicate(timeout=grace)` → if still running `kill()` → `communicate(timeout=KILL_WAIT_SECONDS)`. If it still hasn't exited: `termination = {requested_at, method: 'kill', exited: false, returncode: null, pid}`. `method` is the **last escalation step requested**. Unconfirmed-dead is not a state; it is the fact `exited: false` on the timeout failure, and `recover()` reads it. It is permanent — no later record can "confirm" it in Phase 5 (a `process_exit_confirmation` record is a possible Phase 6 item; name it, don't build it). Failed launch: `termination: null`, `stage: 'host_failure'`, `launch_error: {type, message}`.
 
 The parent uses `communicate` at every wait so stdout/stderr are drained; `wait()` alone can deadlock on a full pipe. On the final timeout, `exited = false`, `returncode = null`, one more `kill()` without waiting.
 
