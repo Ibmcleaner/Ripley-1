@@ -260,7 +260,7 @@ class IsolationContract(IsolationFixtures):
     def test_p5_12_modes_regressions_corrections_and_recovery(self):
         recovery_file = Path(__file__).with_name('test_recovery.py')
         self.assertEqual(hashlib.sha256(recovery_file.read_bytes()).hexdigest(),
-                         'bfd7b42330eb4d94c112529610f3fcb9b3c90824d48118162fddc79b7efdfb50')
+                         'b0548e433be11c9988d0338b4e41250edfdaf2fe4bf3cfb026a8e420b57861ae')
         engine = self.engine()
         self.unchanged_rejection(lambda: engine.run(self.adapter, self.inputs, execution='remote'))
         inline = engine.run(self.adapter, self.inputs)

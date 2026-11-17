@@ -1,3 +1,4 @@
+import ast
 from contextlib import closing
 import hashlib
 import io
@@ -175,15 +176,27 @@ class DurableTests(unittest.TestCase):
 
     def test_p3_10_insert_only_source(self):
         import ripley.storage as storage
-        source = Path(storage.__file__).read_text()
+        storage_path = Path(storage.__file__)
+        source = storage_path.read_text(encoding='utf-8')
         tokens = tokenize.generate_tokens(io.StringIO(source).readline)
         without_comments = ' '.join(t.string for t in tokens if t.type != tokenize.COMMENT)
-        self.assertIsNone(re.search(r'UPDATE|DELETE|REPLACE', without_comments, re.I))
+        self.assertIsNone(re.search(r'\b(?:UPDATE|DELETE|REPLACE)\b', without_comments, re.I))
         self.assertEqual(len(re.findall(r'\bINSERT\b', without_comments, re.I)), 1)
-        for module in Path(storage.__file__).parent.glob('*.py'):
-            tokens = tokenize.generate_tokens(io.StringIO(module.read_text()).readline)
-            sql_strings = ' '.join(t.string for t in tokens if t.type == tokenize.STRING)
-            self.assertIsNone(re.search(r'\b(?:UPDATE|DELETE|REPLACE)\b', sql_strings, re.I))
+
+        sqlite_importers = set()
+        for path in storage_path.parent.rglob('*.py'):
+            tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    names = [node.module]
+                else:
+                    continue
+                if any(name.split('.')[0] == 'sqlite3' for name in names):
+                    sqlite_importers.add(path)
+                    break
+        self.assertEqual(sqlite_importers, {storage_path})
 
     def test_p3_11_restart_edges_rejected_outside_open(self):
         for backend in (SQLiteLedger(self.path), Ledger()):

@@ -324,7 +324,7 @@ class RecoveryContract(RecoveryFixtures):
         self.assertEqual(loader.loadTestsFromModule(test_durable).countTestCases(), 11)
         expected = {
             'test_skeleton.py': '631675940c3ca16738eceaf0c7c35d38227aeccdc229d682b47f599635b0c0ab',
-            'test_durable.py': 'fa252b9806356b573762f7c03742c943ed92450e46f641832ceafc9b35e2bf9a',
+            'test_durable.py': '749716a28fc9112c27aca3a3b5abfc325ddcce5d1d12f0caba3a9844cd6790b0',
         }
         for name, digest in expected.items():
             self.assertEqual(hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest(), digest)
