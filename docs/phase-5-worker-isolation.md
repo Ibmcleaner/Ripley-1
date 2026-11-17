@@ -1,6 +1,6 @@
 # Phase 5 — Local Worker isolation and enforceable deadlines
 
-Status: **IMPLEMENTED prototype, ChatGPT-locally tested; awaiting Claude review and owner acceptance. NOT production validated.**
+Status: IMPLEMENTED prototype, reviewed by Claude at 192217d (post-merge) and eb53d50, merged by owner at bebbba7 (PR #9) and 1b88431 (PR #10). **Independently executed on Windows by the owner: 128 run, 124 passed, 4 expected SIGTERM-dependent skips, 0 failures.** NOT production validated.
 
 ## Implemented boundary
 
@@ -62,7 +62,7 @@ These entries extend the [Phase 4 failure modes](phase-4-recovery-timeout.md#fai
 | Restart of a subprocess Attempt | Preserve Phase 4 open-time classification. Apply the evidence table above at explicit recovery. |
 | Post-hoc timeout | Preserve the Result and a timeout failure. Block before validation. |
 
-## Test evidence and limits
+## Test evidence
 
 P5-01 through P5-13 run on both ledgers. P5-14 and P5-15 exercise real SQLite reopen boundaries. The discovery total is 62 skeleton + 11 durability + 27 Phase 4 recovery + (13 × 2) shared Phase 5 + 2 SQLite-only = **128 tests**.
 
@@ -72,6 +72,12 @@ First independent execution (owner, Windows, `py -m unittest discover -s tests -
 
 The expected Windows skips are P5-04 and P5-08 on each ledger (four test instances). Regression-file integrity hashes are computed over line-ending-normalized UTF-8 text so Windows CRLF checkouts hash identically to Linux.
 
-Bad-then-good correction success is exercised inline. The stateless subprocess fixture exercises a second child and correction-budget exhaustion. The unconfirmed-exit recovery rule is tested with ledger evidence. An actual child surviving the final kill wait was not observed. Windows and Linux scheduling and dispatch latency are outside the parent's control.
+Second independent Windows execution after PR #10 (owner, fresh clone of `main`, `py -m unittest discover -s tests -v`): `Ran 128 tests in 11.946s — OK (skipped=4)`. This is the first Ripley phase whose test suite has been executed by a party other than the implementer.
+
+## Limits
+
+Bad-then-good correction success is proven inline only; the subprocess test worker is stateless by design (see P5-12).
+
+The stateless subprocess fixture exercises a second child and correction-budget exhaustion. The unconfirmed-exit recovery rule is tested with ledger evidence. An actual child surviving the final kill wait was not observed. Windows and Linux scheduling and dispatch latency are outside the parent's control.
 
 Execution is sequential and limited to trusted first-party code. The child inherits the parent's operating-system privileges. There are no resource limits or OS sandbox, and a Worker with no declared deadline may wait indefinitely. Restart replay after a recorded request relies on the trusted watchdog contract.

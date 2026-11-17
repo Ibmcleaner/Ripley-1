@@ -4,7 +4,9 @@ Cyrus Ripley One (Ripley / R1) is a domain-agnostic AI engine/platform being dev
 
 ## Current status
 
-**Phase 1: Architecture & Implementation Baseline**
+Phases 1–5 complete and merged. Phase 5 (local worker isolation, enforceable deadlines) independently executed on Windows. Next: Phase 6 whiteboard.
+
+## Historical Phase 1 baseline
 
 | Milestone | Status |
 |---|---|
