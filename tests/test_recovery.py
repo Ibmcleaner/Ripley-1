@@ -12,6 +12,11 @@ from ripley.storage import SQLiteLedger
 from ripley.synthetic import InventoryAdapter
 
 
+def normalized_source_hash(path):
+    data = Path(path).read_bytes().decode('utf-8').replace('\r\n', '\n').replace('\r', '\n')
+    return hashlib.sha256(data.encode('utf-8')).hexdigest()
+
+
 class Clock:
     def __init__(self):
         self.now = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -327,7 +332,7 @@ class RecoveryContract(RecoveryFixtures):
             'test_durable.py': '749716a28fc9112c27aca3a3b5abfc325ddcce5d1d12f0caba3a9844cd6790b0',
         }
         for name, digest in expected.items():
-            self.assertEqual(hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest(), digest)
+            self.assertEqual(normalized_source_hash(Path(__file__).with_name(name)), digest)
 
 
     def test_p4_15_active_key_blocks_recovery(self):
