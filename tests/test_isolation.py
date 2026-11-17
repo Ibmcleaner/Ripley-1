@@ -1,6 +1,5 @@
 """ADR-009 acceptance with real children and append-only evidence."""
 from datetime import datetime, timedelta, timezone
-import hashlib
 import os
 from pathlib import Path
 import signal
@@ -11,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 import test_recovery
+from test_recovery import normalized_source_hash
 from ripley.core import Ledger, MockWorker, canonical_json
 from ripley.isolation import _excerpt, _response
 from ripley.storage import SQLiteLedger
@@ -259,8 +259,8 @@ class IsolationContract(IsolationFixtures):
 
     def test_p5_12_modes_regressions_corrections_and_recovery(self):
         recovery_file = Path(__file__).with_name('test_recovery.py')
-        self.assertEqual(hashlib.sha256(recovery_file.read_bytes()).hexdigest(),
-                         'bfd7b42330eb4d94c112529610f3fcb9b3c90824d48118162fddc79b7efdfb50')
+        self.assertEqual(normalized_source_hash(recovery_file),
+                         '91039f18ac06f3e4c5a670775ec7f2193750be4ef1c3cc5cc543dbd049b03e26')
         engine = self.engine()
         self.unchanged_rejection(lambda: engine.run(self.adapter, self.inputs, execution='remote'))
         inline = engine.run(self.adapter, self.inputs)

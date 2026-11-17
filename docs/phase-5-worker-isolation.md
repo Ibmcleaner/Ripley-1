@@ -68,9 +68,9 @@ P5-01 through P5-13 run on both ledgers. P5-14 and P5-15 exercise real SQLite re
 
 ChatGPT-local platform run — Debian GNU/Linux 13.6, Linux 6.18.57 x86_64, CPython 3.12.14. `python3 -m unittest discover -s tests -v` passed all 128 tests with zero failures, errors or skips. P5-04 observed the parent kill on Linux. P5-08 observed both a grace response and a post-kill drain with a partial envelope.
 
-Independent execution by a second party has not occurred; test results above are ChatGPT-local.
+First independent execution (owner, Windows, `py -m unittest discover -s tests -v`): 128 run; 4 expected SIGTERM-dependent skips; 4 hash-guard failures caused by platform-dependent working-tree bytes; all behavioral isolation tests passed. Resolved by normalized hashing in PR #10.
 
-The expected Windows skips are P5-04 and P5-08 on each ledger (four test instances). Rob's Windows execution is pending. Source-hash checks use the baseline file bytes, including LF line endings.
+The expected Windows skips are P5-04 and P5-08 on each ledger (four test instances). Regression-file integrity hashes are computed over line-ending-normalized UTF-8 text so Windows CRLF checkouts hash identically to Linux.
 
 Bad-then-good correction success is exercised inline. The stateless subprocess fixture exercises a second child and correction-budget exhaustion. The unconfirmed-exit recovery rule is tested with ledger evidence. An actual child surviving the final kill wait was not observed. Windows and Linux scheduling and dispatch latency are outside the parent's control.
 

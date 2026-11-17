@@ -8,6 +8,8 @@ These records continue the numbering in `phase-1-adrs.md` (ADR-001 through ADR-0
 
 Status: **Accepted** (whiteboard: Rob, Copilot, Claude — November 6, 2026)
 
+Amended November 17, 2026, following the Phase 5 review. Decision 2 scopes the SQL write check to the storage module and checks SQLite import ownership across the package.
+
 ### Context
 
 Phase 2 established Ripley's domain-neutral execution and record model using an in-memory ledger. That proves contract behavior during one process lifetime but does not establish durability. Ripley's Record Principle (ADR-003) requires historical facts and their audit lineage to survive process termination without silent rewriting or invention.
@@ -19,7 +21,7 @@ Ripley's **first** durable ledger uses Python's standard-library `sqlite3`. "Fir
 The durable store:
 
 1. uses a single local SQLite database file, one table, no second table;
-2. stores records append-only: **the ledger module contains exactly one SQL write statement, `INSERT`.** No `UPDATE`, `DELETE`, `REPLACE`, or `INSERT OR REPLACE` may appear anywhere under `ripley/` for any reason. Reviewers verify by search, and a test asserts it;
+2. stores records append-only. `ripley/storage.py` is the only module under `ripley/` that imports `sqlite3`; it contains exactly one SQL write statement, `INSERT`, and no `UPDATE`, `DELETE`, `REPLACE`, or `INSERT OR REPLACE`. Reviewers verify by search, and a test asserts both facts.
 3. uses an explicit insertion sequence (`seq`) as the durable storage order. The `preceding_transition_id` chain remains the semantic truth for transition lineage; storage order and the chain must agree, and a test asserts that they do;
 4. rebuilds every derived structure — the task-key index and all derived task states — from durable records when opened. No derived index or state cache is ever persisted as a second source of truth;
 5. uses one canonical JSON representation for both persistence and content hashing: a single `canonical_json()` helper in `ripley/core.py` is used by `content_hash` and by the store. The `data` column holds the exact bytes that were hashed;

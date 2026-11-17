@@ -41,6 +41,8 @@ Active task duplicates continue to reference the existing task. A task blocked b
 
 ## Test evidence
 
+Regression-file integrity hashes are computed over line-ending-normalized UTF-8 text so Windows CRLF checkouts hash identically to Linux.
+
 November 6, 2026, local verification:
 
 - `python3 -m unittest discover -s tests -v`: 73 tests passed in 1.091s; zero failures/errors. 31 existing test bodies run against Ledger and again against SQLiteLedger (62), plus eleven numbered ADR tests (11).

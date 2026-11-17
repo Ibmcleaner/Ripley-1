@@ -1,5 +1,4 @@
 """Parent-side observation of one trusted Worker process. Only Ripley writes records."""
-import codecs
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import subprocess
@@ -39,10 +38,7 @@ def _response(raw, packet):
 
 
 def _excerpt(raw):
-    # Use the standard codec handler's name. Phase 3's source guard also
-    # scans non-SQL string literals for SQL write verbs.
-    errors = codecs.replace_errors.__name__.removesuffix('_errors')
-    return raw[-DIAGNOSTICS_CAP_BYTES:].decode('utf-8', errors=errors)
+    return raw[-DIAGNOSTICS_CAP_BYTES:].decode('utf-8', errors='replace')
 
 
 def _diagnostics(stderr):
