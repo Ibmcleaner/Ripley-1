@@ -6,7 +6,7 @@ These records continue [ADR-001 through ADR-006](phase-1-adrs.md), [ADR-007](pha
 
 ## ADR-009 — Local Worker process isolation and enforceable deadlines
 
-Status: **ACCEPTED — reviewed by Claude at c39dcec with implementation contracts resolved; awaiting owner merge.**
+Status: **ACCEPTED — amended at review (contracts 1, 2, 4, 8) ; awaiting owner merge.**
 
 Implementation status: **NOT STARTED. Documentation only.**
 
@@ -103,7 +103,7 @@ When the deadline expires:
 
 The timeout failure contains a `termination` object with appropriate facts, including `requested_at`, `method` (`terminate` or `kill`), `exited`, `returncode`, and `pid`. Do not create a separate termination record. Report observed facts rather than assuming that sending a termination request proves exit.
 
-If the parent cannot confirm the child exited, record `termination.exited = false`, block the Task, mark the Attempt as unconfirmed dead, and prohibit recovery for that Attempt. The exact append-only representation of “unconfirmed dead,” grace duration, and bound on final waiting are unresolved implementation contracts; no new Task state or mutation is introduced by this ADR.
+If the parent cannot confirm the child exited, record `termination.exited = false`, block the Task, mark the Attempt as unconfirmed dead, and prohibit recovery for that Attempt. These are resolved in ‘Implementation contracts (resolved at review)’ below.
 
 #### Recovery requires proof of exit
 
@@ -150,7 +150,7 @@ These are required future tests, not executed evidence. Preserve these identifie
 | P5-11 | Request packet stored for the Attempt uses canonical JSON and the child receives exactly those bytes |
 | P5-12 | Execution mode is explicit and opt-in; existing Phase 2/3/4 behavior passes unchanged inline; applicable recovery behavior passes under subprocess mode |
 | P5-13 | Platform-dependent termination tests use explicit skip conditions; the supported test suite passes on Windows and Linux |
-| P5-14 | subprocess attempt interrupted by restart *after* `execution_request`: `recover()` refused while `clock() ≤ deadline_at + grace + 1s`; succeeds once the clock passes it; an attempt with `deadline_at: None` is refused at any time. |
+| P5-14 | subprocess attempt interrupted by restart *after* `execution_request`: `recover()` refused while `clock() ≤ deadline_at + grace + 1s`; succeeds once the clock passes it; an attempt with `deadline_at: None` is refused at any time; and the same rule applied to a restart-classified `timeout` failure (`deadline_exceeded_before_restart`) on a subprocess attempt. |
 | P5-15 | subprocess attempt interrupted *before* `execution_request` exists → `recover()` eligible immediately (no process ever started). |
 
 A skipped platform-specific termination case is not evidence that its path was exercised. Windows and Linux execution evidence must be reported separately; neither is claimed by this ADR.
@@ -185,8 +185,12 @@ Proof-of-death rule for `recover()` on a *subprocess* attempt interrupted by res
 
 Inline attempts are unaffected: no process existed, ADR-008 eligibility stands.
 
+Proof of death for a subprocess attempt is determined by evidence shape, not stage label: (a) no `execution_request` → never spawned → eligible; (b) `termination` present → eligible iff `termination.exited` is true; (c) `completed_at` present with no `termination` (post-hoc) → eligible; (d) open-time classification — stage `interrupted`, or stage `timeout` with message `deadline_exceeded_before_restart`, no `termination` — eligible iff `deadline_at` is set and `clock() > deadline_at + TERMINATION_GRACE_SECONDS + 1 s`; otherwise refused. Ripley has no other proof-of-death mechanism in Phase 5.
+
 **2. Grace / final wait / unconfirmed death.**
-Two engine constants, not adapter knobs: `TERMINATION_GRACE_SECONDS = 2.0`, `KILL_WAIT_SECONDS = 5.0`. Sequence: `terminate()` → `communicate(timeout=grace)` → if still running `kill()` → `wait(timeout=KILL_WAIT_SECONDS)`. If it still hasn't exited: `termination = {requested_at, method: 'kill', exited: false, returncode: null, pid}`. `method` is the **last escalation step requested**. Unconfirmed-dead is not a state; it is the fact `exited: false` on the timeout failure, and `recover()` reads it. It is permanent — no later record can "confirm" it in Phase 5 (a `process_exit_confirmation` record is a possible Phase 6 item; name it, don't build it). Failed launch: `termination: null`, `stage: 'host_failure'`, `launch_error: {type, message}`.
+Two engine constants, not adapter knobs: `TERMINATION_GRACE_SECONDS = 2.0`, `KILL_WAIT_SECONDS = 5.0`. Sequence: `terminate()` → `communicate(timeout=grace)` → if still running `kill()` → `communicate(timeout=KILL_WAIT_SECONDS)`. If it still hasn't exited: `termination = {requested_at, method: 'kill', exited: false, returncode: null, pid}`. `method` is the **last escalation step requested**. Unconfirmed-dead is not a state; it is the fact `exited: false` on the timeout failure, and `recover()` reads it. It is permanent — no later record can "confirm" it in Phase 5 (a `process_exit_confirmation` record is a possible Phase 6 item; name it, don't build it). Failed launch: `termination: null`, `stage: 'host_failure'`, `launch_error: {type, message}`.
+
+The parent uses `communicate` at every wait so stdout/stderr are drained; `wait()` alone can deadlock on a full pipe. On the final timeout, `exited = false`, `returncode = null`, one more `kill()` without waiting.
 
 **3. Protocol parsing and classification precedence** — evaluated strictly in this order, first match wins:
 - (a) `TimeoutExpired` raised by the deadline wait → **timeout** (plus `late_result` per contract 4 if a valid response arrives during grace).
@@ -198,7 +202,7 @@ Two engine constants, not adapter knobs: `TERMINATION_GRACE_SECONDS = 2.0`, `KIL
 Response at exactly the deadline: Phase 4's strict `>` stands — equal is on time.
 
 **4. Deadline timing and late-result ordering.**
-`started_at = clock()` immediately before `Popen`; `deadline_at = started_at + timeout_seconds`, persisted UTC on the attempt. The wait budget is `(deadline_at − started_at)` real seconds passed to `communicate(timeout=…)`; the injected clock sets the persisted facts, the real wait governs enforcement (tests use tiny real timeouts, not sleeps in the parent). **Timeout is declared at the instant `TimeoutExpired` is raised**; record `declared_at`. P5-07 = `communicate` returned normally and `completed_at > deadline_at` → Phase 4 post-hoc path unchanged. P5-08 = `TimeoutExpired` → terminate → a complete valid response arrives during grace → **append `execution_failure(timeout)` first, then `late_result` {attempt_id, failure_id, output, worker_identity}**. That ordering satisfies ADR-008's "already has an execution_failure" wording exactly. A crash between those two appends loses only the late output; documented, acceptable. No deadline → `communicate()` with no timeout; no timeout can occur; no watchdog in the child.
+`started_at = clock()` immediately before `Popen`; `deadline_at = started_at + timeout_seconds`, persisted UTC on the attempt. Inline attempts persist timestamps from the injected evidence clock. Subprocess attempts persist `started_at`, `deadline_at`, `declared_at`, `termination.requested_at`, and `completed_at` from real UTC, because the child watchdog can only interpret `deadline_at` against the real clock. The parent’s enforcement budget is `timeout_seconds` passed to `communicate`. The injected clock remains the comparison clock inside `recover()`. Envelope v1 is unchanged. **Timeout is declared at the instant `TimeoutExpired` is raised**; record `declared_at`. P5-07 = `communicate` returned normally and `completed_at > deadline_at` → Phase 4 post-hoc path unchanged. P5-08 = `TimeoutExpired` → terminate → a complete valid response arrives during grace → **append `execution_failure(timeout)` first, then `late_result` {attempt_id, failure_id, output, worker_identity}**. That ordering satisfies ADR-008's "already has an execution_failure" wording exactly. A crash between those two appends loses only the late output; documented, acceptable. No deadline → `communicate()` with no timeout; no timeout can occur; no watchdog in the child.
 
 **5. Packet storage and attempt-ID ordering.**
 Sequence: (i) append `execution_attempt` {…, `execution: 'subprocess'`, `deadline_at`, `replays_attempt_id`}; (ii) build the packet with `attempt.id`; (iii) append **one new record kind, `execution_request`** {attempt_id, packet} — justified because the packet is a fact Ripley acted on and no existing record can hold it without mutation; (iv) `Popen`, write `canonical_json(packet)` to stdin. P5-11 asserts the bytes written equal `canonical_json(record.data['packet'])`. Crash windows: attempt without request → no process was ever spawned → on restart, the interruption is **trivially confirmed dead** → eligible (new test P5-15). Attempt with request → contract 1 applies. Launch failure after request → `host_failure` as in contract 2; not a recoverable class (ADR-008 lists only interrupted/timeout), owner resubmits.
@@ -210,7 +214,7 @@ Sequence: (i) append `execution_attempt` {…, `execution: 'subprocess'`, `deadl
 `DIAGNOSTICS_CAP_BYTES = 8192`. Keep the **tail** (tracebacks end with the useful line). Read stderr in full via `communicate` (trusted workers; no backpressure subsystem), then truncate. Decode UTF-8 with `errors='replace'`. Record as `diagnostics: {bytes_total, truncated: bool, text}` on `worker_failure`, `host_failure`, and `timeout` failures. On success, stderr is discarded — not persisted. Excess **stdout** is a protocol violation and already host_failure; cap the parent's read of it at the same 8192 for the diagnostic copy.
 
 **8. Platform test contract.**
-All P5 tests run on Linux and Windows except P5-04 (SIGTERM trap), skipped with `@unittest.skipIf(sys.platform == 'win32', 'graceful-termination signal not supported on Windows')`. `termination.method` expectations: P5-03 → `'terminate'` on both platforms (it's what was requested; on Windows it happens to be forceful); P5-04 → `'kill'` on Linux. Platform changes expected metadata, never acceptance. Each platform's run is reported separately; a skip is reported as a skip. **Rob runs the suite on Windows** — that would be the first second-party execution in the project's history and closes the caveat we've carried since Phase 2.
+All P5 tests run on Linux and Windows except P5-04 and P5-08, both SIGTERM-dependent (a child cannot trap Windows `TerminateProcess`); each carries `@unittest.skipIf(sys.platform == 'win32', …)`. A skip is reported as a skip; Linux evidence for these two is required before acceptance. `termination.method` expectations: P5-03 → `'terminate'` on both platforms (it's what was requested; on Windows it happens to be forceful); P5-04 → `'kill'` on Linux. Platform changes expected metadata, never acceptance. Each platform's run is reported separately; a skip is reported as a skip. **Rob runs the suite on Windows** — that would be the first second-party execution in the project's history and closes the caveat we've carried since Phase 2.
 
 ### Consequences and evidence boundary
 
