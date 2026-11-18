@@ -1,4 +1,5 @@
 """ADR-010 acceptance against the real SDK and an offline transport."""
+import ast
 import importlib.util
 import copy
 import hashlib
@@ -112,6 +113,21 @@ class SdkMockTransportTests(unittest.TestCase):
                 self.assertFalse(stripped.startswith(('import anthropic', 'from anthropic')), str(source))
                 if source.name != 'worker_host.py':
                     self.assertNotIn('import AnthropicWorker', stripped)
+
+
+        for source in Path('scripts').glob('*.py'):
+            for node in ast.walk(ast.parse(source.read_text('utf-8'))):
+                if isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    modules = [node.module or ''] + [
+                        f'{node.module}.{alias.name}' for alias in node.names]
+                else:
+                    continue
+                for module in modules:
+                    for forbidden in ('anthropic', 'httpx2', 'ripley.providers'):
+                        self.assertFalse(module == forbidden or module.startswith(forbidden + '.'),
+                                         f'{source}:{node.lineno} imports {module}')
 
 
 DAY1, DAY2 = '2026-11-15', '2026-11-16'

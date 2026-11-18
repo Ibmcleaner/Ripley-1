@@ -1,6 +1,6 @@
 # Phase 6 external provider Worker
 
-Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). NO LIVE PROVIDER CALL HAS BEEN MADE. 6D not authorized; 6E pending. NOT production validated.**
+Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). NO LIVE PROVIDER CALL HAS BEEN MADE. 6D not authorized; 6E pending. NOT production validated.** 6D-prep runner present (draft PR #17); Bears packet blocked on source dates.
 
 ## Implemented boundary
 
@@ -174,6 +174,17 @@ Only the separately owner-authorized 6D pilot can establish that.
 - Practice evidence is grouped by a row's `report_date` or an explicit ISO date
   mentioned in its text. The fixtures use individual dated rows. Interpreting a
   live source's weekday columns belongs to the later acquisition work.
+
+## 6D-prep
+
+The owner runner at `scripts/pilot_dispatch.py` takes a frozen packet and a SQLite
+path. The draft exercises a single mock run, active duplicate, terminal owner
+decision, authorized redispatch and budget refusals using the existing synthetic
+fixture. The owner’s Bears report shows the team rows and the matchup. Publication
+time, practice date and kickoff date still require owner-supplied evidence.
+The packet ID, SHA-256, owner transcription check and Windows dry-run are pending.
+The mock gate tests establish no live account or model acceptance.
+[Windows mock dry-run](pilot/6d-dry-run.md)
 
 ## Remaining stages
 
