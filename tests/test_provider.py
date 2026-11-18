@@ -333,20 +333,45 @@ class ProviderContract(ProviderFixtures):
         self.unchanged(self.run_provider, PermissionError, 'second paid dispatch requires owner')
 
     def test_p6_08_owner_authorized_redispatch(self):
-        self.output_path.write_text('{"players":[]}', encoding='utf-8')
+        from ripley.core import dispatches_consumed
+
         first = self.run_provider()
-        self.assertEqual(self.ledger.task_state(first['task'].id), 'blocked')
+        task_key = first['task'].data['task_key']
+        self.assertEqual(first['outcome'], 'pending_owner_approval')
+        self.assertEqual(len(self.records('execution_attempt')), 1)
+        self.assertEqual(dispatches_consumed(self.ledger, task_key), 1)
+        before_duplicate = len(self.ledger.records)
+        duplicate = self.run_provider()
+        self.assertEqual(duplicate['outcome'], 'duplicate_of_existing_task')
+        self.assertEqual(duplicate['task'].id, first['task'].id)
+        self.assertEqual(len(self.ledger.records), before_duplicate + 1)
+        submission = tuple(self.ledger.records.values())[-1]
+        self.assertEqual(submission.kind, 'duplicate_submission')
+        self.assertEqual(submission.data['task_id'], first['task'].id)
+        self.assertEqual(len(self.records('execution_attempt')), 1)
+        self.assertEqual(dispatches_consumed(self.ledger, task_key), 1)
+
+        self.engine.decide_approval(first['approval'].id, 'owner', 'approved', 'fixture approval')
+        self.assertEqual(self.ledger.task_state(first['task'].id), 'approved')
         self.unchanged(self.run_provider, PermissionError, 'second paid dispatch requires owner')
+        self.assertEqual(len(self.records('execution_attempt')), 1)
+        self.assertEqual(dispatches_consumed(self.ledger, task_key), 1)
         auth = self.ledger.add('dispatch_authorization', {
-            'task_key': first['task'].data['task_key'], 'prior_attempt_id': first['attempt'].id,
+            'task_key': task_key, 'prior_attempt_id': first['attempt'].id,
             'prior_remote_outcome': 'completed', 'actor': 'owner', 'reason': 'fixture permission'})
-        self.output_path.write_text(json.dumps(self.output), encoding='utf-8')
         second = self.run_provider()
         self.assertEqual(second['outcome'], 'pending_owner_approval')
+        self.assertEqual(len(self.records('execution_attempt')), 2)
         self.assertEqual(second['attempt'].data['dispatch_authorization_id'], auth.id)
+        self.assertEqual(sum(r.data.get('dispatch_authorization_id') == auth.id
+                             for r in self.records('execution_attempt')), 1)
+        self.assertEqual(dispatches_consumed(self.ledger, task_key), 2)
+
+        self.engine.decide_approval(second['approval'].id, 'owner', 'approved', 'fixture approval')
+        self.assertEqual(self.ledger.task_state(second['task'].id), 'approved')
         self.unchanged(self.run_provider, PermissionError, 'second paid dispatch requires owner')
-        from ripley.core import dispatches_consumed
-        self.assertEqual(dispatches_consumed(self.ledger, first['task'].data['task_key']), 2)
+        self.assertEqual(len(self.records('execution_attempt')), 2)
+        self.assertEqual(dispatches_consumed(self.ledger, task_key), 2)
 
     def test_p6_09_correction_recovery_and_execution_authority(self):
         self.output_path.write_text('{"players":[]}', encoding='utf-8')
