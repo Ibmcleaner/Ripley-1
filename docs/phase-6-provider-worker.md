@@ -1,6 +1,6 @@
 # Phase 6 external provider Worker
 
-Status: **IMPLEMENTED prototype (6B, mock transport only), ChatGPT-locally tested; awaiting Claude review and owner acceptance. NO LIVE PROVIDER CALL HAS BEEN MADE. NOT production validated.**
+Status: **ACCEPTED prototype (6B, mock transport only) — Claude-reviewed at b860074; executed independently on Linux (Claude, 146 OK) and Windows (owner, Python 3.13.9, 146 run / 142 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #12, 24904d9). NO LIVE PROVIDER CALL HAS BEEN MADE. 6C/6D/6E pending. NOT production validated.**
 
 ## Implemented boundary
 
@@ -118,8 +118,8 @@ and P6-16. Provider cases skip explicitly when the optional SDK is absent. Provi
 cases use no platform-specific signals and are eligible on Windows when the SDK is
 installed. Existing Phase 5 tests retain their four expected Windows signal skips.
 
-The reported test execution was ChatGPT-local. Independent Windows execution of 6B
-has not occurred. The previous independent Phase 5 execution remains its own evidence.
+The reported test execution was ChatGPT-local. Independent Windows execution of 6B: owner, Python 3.13.9,
+146 run / 142 pass / 4 expected Phase 5 signal skips / 0 fail. The previous independent Phase 5 execution remains its own evidence.
 Phase 2–5 test files remain byte-identical to the baseline. P6-16 pins the normalized
 hash of `test_isolation.py`, extending the existing regression-file hash chain.
 
