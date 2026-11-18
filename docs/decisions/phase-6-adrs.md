@@ -6,9 +6,9 @@ These records continue [ADR-001 through ADR-006](phase-1-adrs.md), [ADR-007](pha
 
 ## ADR-010 — External provider Worker and paid-dispatch governance
 
-Status: **ACCEPTED — revision 9 (amended during 6B) — drafted by Claude from the Phase 6 whiteboard; revised for thirteen Copilot corrections and three rounds of ChatGPT pre-commit findings; Decision 1 ruled by the owner 2026-11-17 after a read-only Models API confirmation; awaiting docs commit and owner merge.**
+Status: **ACCEPTED — revision 9 (amended during 6B) — drafted by Claude from the Phase 6 whiteboard; revised for thirteen Copilot corrections and three rounds of ChatGPT pre-commit findings; Decision 1 ruled by the owner 2026-11-17 after a read-only Models API confirmation; merged (PR #11 a7cbfd2; amended PR #13 200f3fc).**
 
-Implementation status: **NOT STARTED. Documentation only. No live API calls are authorized by this record.**
+Implementation status: **6B IMPLEMENTED and accepted (mock transport only, PR #12 24904d9). 6C/6D/6E not started. No live API calls are authorized by this record.**
 
 Recorded: 2026-11-17 · Revised: 2026-11-17
 Baseline: `main` after PR #10 (Phase 5 accepted; independently executed on Windows).
