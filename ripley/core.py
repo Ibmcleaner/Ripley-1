@@ -94,6 +94,31 @@ def provider_attempt_outcome(ledger, attempt):
     return failure.data['remote_outcome']
 
 
+def provider_dispatch_counts(ledger, transport_mode):
+    """Derive only the three dispatch counts required by Phase 6C."""
+    from .workers import spec_for
+
+    counts = {'confirmed_sent': 0, 'uncertain_dispatch': 0, 'budget_slots_consumed': 0}
+    records = tuple(ledger.records.values())
+    for attempt in records:
+        if (attempt.kind != 'execution_attempt'
+                or attempt.data.get('transport_mode') != transport_mode
+                or spec_for(attempt.data['worker']).kind != 'provider'):
+            continue
+        outcome = provider_attempt_outcome(ledger, attempt)
+        result = next((r for r in records if r.kind == 'result'
+                       and r.data.get('attempt_id') == attempt.id), None)
+        fact = result or next((r for r in reversed(records) if r.kind == 'execution_failure'
+                              and r.data.get('attempt_id') == attempt.id), None)
+        dispatch = fact.data.get('dispatch') if fact else None
+        observation = dispatch.get('observation') if dispatch else None
+        counts['confirmed_sent'] += observation == 'sent'
+        counts['uncertain_dispatch'] += (observation == 'possibly_sent'
+                                        or (outcome == 'unknown' and observation is None))
+        counts['budget_slots_consumed'] += outcome != 'failed_before_send'
+    return counts
+
+
 def dispatches_consumed(ledger, task_key):
     """Derive charged provider Attempts across both preserved lineage links."""
     from .workers import spec_for

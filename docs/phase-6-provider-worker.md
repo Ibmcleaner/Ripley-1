@@ -1,6 +1,6 @@
 # Phase 6 external provider Worker
 
-Status: **ACCEPTED prototype (6B, mock transport only) — Claude-reviewed at b860074; executed independently on Linux (Claude, 146 OK) and Windows (owner, Python 3.13.9, 146 run / 142 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #12, 24904d9). NO LIVE PROVIDER CALL HAS BEEN MADE. 6C/6D/6E pending. NOT production validated.**
+Status: **IMPLEMENTED prototype (6B accepted; 6C tests added), ChatGPT-locally tested; awaiting Claude review and owner acceptance. NO LIVE PROVIDER CALL HAS BEEN MADE. NOT production validated.**
 
 ## Implemented boundary
 
@@ -123,6 +123,35 @@ The reported test execution was ChatGPT-local. Independent Windows execution of 
 Phase 2–5 test files remain byte-identical to the baseline. P6-16 pins the normalized
 hash of `test_isolation.py`, extending the existing regression-file hash chain.
 
+## 6C evidence
+
+Provider tasks are non-recoverable in Phase 6. Existing fail-closed recovery preconditions retain their established ordering; `replay_policy='no'` may reject before the resource-ceiling check. ADR-010 does not require reordering those guards.
+
+The 6C tests use only synthetic credentials and mock execution; neither live gate
+nor live transport is selected. The live-mode record in P6-14 is a directly
+appended accounting fixture, not an execution.
+
+ChatGPT executed `python -m unittest discover -s tests -v` on Linux, Python
+3.12.14, with `anthropic==2.9.0` and `httpx2==2.16.2`: **159 tests passed,
+0 skips, 0 failures**, in 58.947 seconds. Execution used a clean environment
+with no inherited credentials, live-mode configuration, or proxy settings.
+Phase 2–5 test files are byte-identical to baseline `053137d`.
+
+| Test | Claim |
+|---|---|
+| P6-02 | A missing credential invokes no SDK request, consumes no slot, permits a later attempt, and a successful synthetic-credential run persists neither the key nor canary fragments. |
+| P6-06 | An SDK read timeout is uncertain dispatch without parent termination and prevents unauthorized redispatch. |
+| P6-07 | A hung mock request is terminated by the parent, creates no late result, and consumes one uncertain slot. |
+| P6-12 | Child sanitization removes the synthetic key, canaries, and authorization lines; independent local-Worker diagnostics prove parent pattern redaction and test-marker gating. |
+| P6-14 | Bypassing the mock transport reaches the socket guard, closed gates prevent dispatch, budget exhaustion appends only its refusal fact, and mock/live accounting remains separate. |
+| P6-15 | Startup delay exhausts the minimum SDK allowance before invocation, while the same declared deadline succeeds without delay. |
+| P6-17 | A bare SQLite provider attempt consumes an uncertain slot before and after restart; interruption adds no invented dispatch observation, recovery is refused, and a second reopen appends nothing. |
+
+Independent Windows execution of 6C and Claude review are pending. No 6C test
+adds a Windows skip; the four existing Phase 5 signal skips remain unchanged.
+These tests do not prove that the account/model accepts the live request.
+Only the separately owner-authorized 6D pilot can establish that.
+
 ## Implementation decisions recorded for review
 
 - The registry uses an outer read-only mapping of immutable namedtuple descriptors,
@@ -148,10 +177,8 @@ hash of `test_isolation.py`, extending the existing regression-file hash chain.
 
 ## Remaining stages
 
-6C supplies P6-02, P6-06, P6-07, P6-12, P6-14, P6-15, and P6-17, covering missing
-credentials, SDK and parent timeouts, redaction, gate isolation, insufficient time,
-and restart accounting. Their implementation controls are present where required
-by the assignment, and their acceptance tests remain pending.
+6C tests and the narrowly assigned supporting changes are implemented, pending
+Claude review and independent owner Windows verification before acceptance.
 
 6D requires a separate owner authorization for the gated live pilot and establishes
 whether the exact model/account accepts the request. 6E adds owner quality grading

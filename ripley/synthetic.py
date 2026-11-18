@@ -46,6 +46,10 @@ class TestBehaviorWorker:
                 sys.stderr.buffer.flush()
             elif name == 'raise':
                 raise RuntimeError('test worker raised')
+            elif name == 'stderr_text':
+                from urllib.parse import unquote
+                sys.stderr.write(unquote(argument))
+                sys.stderr.flush()
             elif name == 'bad_output':
                 return {}
         return adapter.predict(snapshot['inputs'])

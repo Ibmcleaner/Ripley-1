@@ -9,9 +9,11 @@ import socket
 import tempfile
 from types import SimpleNamespace
 import unittest
+from collections.abc import Mapping
 from unittest.mock import patch
 
-from ripley.core import Ledger, Ripley, canonical_json
+from ripley.core import (Ledger, Ripley, canonical_json, dispatches_consumed,
+                         provider_attempt_outcome, provider_dispatch_counts)
 from ripley.nfl_availability import AvailabilityValidator, NflAvailabilityAdapter
 from ripley.storage import SQLiteLedger
 
@@ -283,6 +285,196 @@ class ProviderFixtures:
 
 
 class ProviderContract(ProviderFixtures):
+    def assert_no_secrets(self, forbidden):
+        def walk(value):
+            if isinstance(value, Mapping):
+                for key, item in value.items():
+                    walk(key)
+                    walk(item)
+            elif isinstance(value, (tuple, list)):
+                for item in value:
+                    walk(item)
+            elif isinstance(value, str):
+                for secret in forbidden:
+                    self.assertNotIn(secret, value)
+        for record in self.ledger.records.values():
+            walk(record.data)
+
+    def test_p6_02_missing_credential_and_record_scan(self):
+        with patch.dict(os.environ):
+            del os.environ['RIPLEY_ANTHROPIC_API_KEY']
+            first = self.run_provider()
+            failure = first['failure'].data
+            self.assertEqual(first['outcome'], 'blocked_worker_failure')
+            self.assertEqual(failure['provider_error'], 'auth_unavailable')
+            self.assertEqual(failure['remote_outcome'], 'failed_before_send')
+            self.assertEqual(failure['dispatch']['observation'], 'not_sent')
+            self.assertIsNone(failure['dispatch']['sent_at'])
+            self.assertIsNone(failure['dispatch']['provider_request_id'])
+            self.assertIn('mock_requests_seen=0', failure['error']['detail'])
+            self.assertIn('sdk_invoked=false', failure['error']['detail'])
+            self.assertEqual(dispatches_consumed(self.ledger, first['task'].data['task_key']), 0)
+            second = self.run_provider()
+            self.assertEqual(second['outcome'], 'blocked_worker_failure')
+            self.assertNotEqual(first['attempt'].id, second['attempt'].id)
+            self.assertEqual(len(self.records('execution_attempt')), 2)
+        secret = 'sk-ant-test-synthetic-LEAKCHECK-0123456789'
+        canaries = ('CANARYFRAG1', 'CANARYFRAG2')
+        with patch.dict(os.environ, {'RIPLEY_ANTHROPIC_API_KEY': secret,
+                                    'RIPLEY_TEST_CANARIES': '|'.join(canaries)}):
+            self.assertEqual(self.run_provider()['outcome'], 'pending_owner_approval')
+            self.assert_no_secrets((secret, *canaries))
+
+    def test_p6_06_sdk_timeout(self):
+        os.environ['RIPLEY_MOCK_PROVIDER_SCRIPT'] = 'read_timeout'
+        run = self.run_provider()
+        failure = run['failure'].data
+        self.assertEqual(run['outcome'], 'blocked_worker_failure')
+        self.assertEqual(failure['provider_error'], 'provider_timeout')
+        self.assertEqual(failure['dispatch']['observation'], 'possibly_sent')
+        self.assertEqual(failure['remote_outcome'], 'unknown')
+        self.assertIn('mock_requests_seen=1', failure['error']['detail'])
+        self.assertIn('sdk_invoked=true', failure['error']['detail'])
+        self.assertNotIn('termination', failure)
+        self.unchanged(self.run_provider, PermissionError, 'second paid dispatch requires owner')
+
+    def test_p6_07_parent_kills_hung_provider(self):
+        os.environ['RIPLEY_MOCK_PROVIDER_SCRIPT'] = 'hang_after_send'
+        self.engine._subprocess_wait = lambda seconds: 2.0
+        try:
+            run = self.run_provider()
+        finally:
+            self.engine._subprocess_wait = None
+        failure = run['failure'].data
+        self.assertEqual(run['outcome'], 'blocked_timeout')
+        self.assertIn(failure['termination']['method'], ('terminate', 'kill'))
+        self.assertIs(failure['termination']['exited'], True)
+        self.assertIsNone(failure['dispatch'])
+        self.assertEqual(failure['remote_outcome'], 'unknown')
+        self.assertFalse(self.records('late_result'))
+        self.assertIsNone(run['late_result'])
+        self.assertEqual(dispatches_consumed(self.ledger, run['task'].data['task_key']), 1)
+        self.assertEqual(provider_dispatch_counts(self.ledger, 'mock'),
+                         {'confirmed_sent': 0, 'uncertain_dispatch': 1, 'budget_slots_consumed': 1})
+
+    def test_p6_12_child_and_parent_redaction(self):
+        from ripley.isolation import redact_patterns
+        from ripley.synthetic import InventoryAdapter
+
+        secret = 'sk-ant-test-synthetic-LEAKCHECK-0123456789'
+        canaries = ('CANARYFRAG1', 'CANARYFRAG2')
+        with patch.dict(os.environ, {'RIPLEY_ANTHROPIC_API_KEY': secret,
+                'RIPLEY_TEST_CANARIES': '|'.join(canaries),
+                'RIPLEY_TEST_SECRET_MARKER': 'PLANTEDMARKER99',
+                'RIPLEY_MOCK_PROVIDER_SCRIPT': '500:leaky+leak_stderr'}):
+            run = self.run_provider()
+            failure = run['failure'].data
+            self.assertEqual(run['outcome'], 'blocked_worker_failure')
+            self.assertEqual(failure['provider_error'], 'provider_unavailable')
+            self.assertEqual(failure['dispatch']['observation'], 'sent')
+            self.assertEqual(failure['remote_outcome'], 'failed_after_send')
+            self.assertTrue(failure['diagnostics']['text'])
+            self.assert_no_secrets((secret, *canaries, 'Authorization:'))
+            local_worker = SimpleNamespace(identity='test-behavior-worker')
+            with patch.dict(os.environ, {'RIPLEY_TEST_WORKER_BEHAVIOR':
+                                         'stderr_text:sk-ant-PLANTED0000000000+raise'}):
+                local = Ripley(self.ledger).run(InventoryAdapter(),
+                    {'stock': 1, 'demand': 0, 'threshold': 0}, worker=local_worker,
+                    allowed_workers=(local_worker.identity,), execution='subprocess')
+            self.assertEqual(local['outcome'], 'blocked_worker_failure')
+            diagnostics = local['failure'].data['diagnostics']['text']
+            self.assertIn('[REDACTED]', diagnostics)
+            self.assertNotIn('sk-ant-PLANTED', diagnostics)
+            for text in ('token=' + 'A' * 48, 'Bearer abc.def', 'PLANTEDMARKER99'):
+                self.assertIn('[REDACTED]', redact_patterns(text))
+            with patch.dict(os.environ):
+                del os.environ['RIPLEY_ENABLE_TEST_WORKERS']
+                self.assertEqual(redact_patterns('PLANTEDMARKER99'), 'PLANTEDMARKER99')
+
+    def test_p6_14_socket_guard_gates_and_budgets(self):
+        guard_attempts = []
+
+        def forbidden(*args, **kwargs):
+            guard_attempts.append(True)
+            raise RuntimeError('network forbidden in mock transport mode')
+
+        with patch.dict(os.environ, {'RIPLEY_MOCK_PROVIDER_SCRIPT': 'bypass_transport'}), \
+                patch.object(socket.socket, 'connect', forbidden), \
+                patch.object(socket.socket, 'connect_ex', forbidden), \
+                patch.object(socket, 'create_connection', forbidden):
+            run = self.run_provider()
+        self.assertEqual(run['outcome'], 'blocked_host_failure')
+        self.assertEqual(run['failure'].data['returncode'], 3)
+        self.assertIsNone(run['failure'].data['dispatch'])
+        self.assertEqual(run['failure'].data['remote_outcome'], 'unknown')
+        self.assertEqual(dispatches_consumed(self.ledger, run['task'].data['task_key']), 1)
+        self.assertEqual(guard_attempts, [])
+
+        for missing in ('RIPLEY_PROVIDER_TRANSPORT', 'RIPLEY_ENABLE_TEST_WORKERS'):
+            self.inputs['game_id'] = 'gate-' + missing
+            with patch.dict(os.environ):
+                del os.environ[missing]
+                run = self.run_provider()
+            failure = run['failure'].data
+            self.assertEqual(run['outcome'], 'blocked_worker_failure')
+            self.assertEqual(failure['provider_error'], 'live_gate_closed')
+            self.assertEqual(failure['dispatch']['observation'], 'not_sent')
+            self.assertEqual(failure['remote_outcome'], 'failed_before_send')
+            self.assertIn('mock_requests_seen=0', failure['error']['detail'])
+            gates = {g['name']: g['present'] for g in run['attempt'].data['gates']}
+            self.assertIs(gates['RIPLEY_LIVE_DISPATCH'], False)
+            if missing == 'RIPLEY_PROVIDER_TRANSPORT':
+                self.assertIsNone(run['attempt'].data['transport_mode'])
+
+        # Each budget scenario starts with an empty ledger of the fixture's type.
+        def fresh_ledger(name):
+            return SQLiteLedger(self.root / name) if isinstance(self.ledger, SQLiteLedger) else Ledger()
+
+        self.ledger = fresh_ledger('budget.sqlite')
+        self.engine = Ripley(self.ledger, validator=AvailabilityValidator())
+        with patch.dict(os.environ, {'RIPLEY_PILOT_DISPATCH_BUDGET': '2'}):
+            for game in ('budget-one', 'budget-two'):
+                self.inputs['game_id'] = game
+                self.assertEqual(self.run_provider()['outcome'], 'pending_owner_approval')
+            self.inputs['game_id'] = 'budget-three'
+            before = tuple(self.ledger.records)
+            with self.assertRaisesRegex(ValueError, '^pilot dispatch budget exhausted$'):
+                self.run_provider()
+            appended = tuple(self.ledger.records.values())[len(before):]
+            self.assertEqual(tuple(self.ledger.records)[:len(before)], before)
+            self.assertEqual(len(appended), 1)
+            self.assertEqual(appended[0].kind, 'pilot_budget_exhausted')
+            self.assertEqual(dict(appended[0].data),
+                             {'budget': 2, 'consumed': 2, 'transport_mode': 'mock'})
+
+        self.ledger = fresh_ledger('separation.sqlite')
+        self.engine = Ripley(self.ledger, validator=AvailabilityValidator())
+        # Ledger fixture only; no live execution or live environment selection.
+        self.ledger.add('execution_attempt', {'task_id': 'unresolved-fixture',
+                         'worker': self.worker.identity, 'transport_mode': 'live'})
+        with patch.dict(os.environ, {'RIPLEY_PILOT_DISPATCH_BUDGET': '1'}):
+            self.inputs['game_id'] = 'separate-mock'
+            self.assertEqual(self.run_provider()['outcome'], 'pending_owner_approval')
+        self.assertEqual(provider_dispatch_counts(self.ledger, 'live'),
+                         {'confirmed_sent': 0, 'uncertain_dispatch': 1, 'budget_slots_consumed': 1})
+        self.assertEqual(provider_dispatch_counts(self.ledger, 'mock'),
+                         {'confirmed_sent': 1, 'uncertain_dispatch': 0, 'budget_slots_consumed': 1})
+
+    def test_p6_15_startup_budget(self):
+        self.adapter.timeout_seconds = 10
+        with patch.dict(os.environ, {'RIPLEY_MOCK_PROVIDER_SCRIPT': 'startup_delay:3'}):
+            run = self.run_provider()
+        failure = run['failure'].data
+        self.assertEqual(run['outcome'], 'blocked_worker_failure')
+        self.assertEqual(failure['provider_error'], 'insufficient_time')
+        self.assertEqual(failure['dispatch']['observation'], 'not_sent')
+        self.assertEqual(failure['remote_outcome'], 'failed_before_send')
+        self.assertIsNone(failure['dispatch']['sent_at'])
+        self.assertIn('sdk_invoked=false', failure['error']['detail'])
+        self.assertIn('mock_requests_seen=0', failure['error']['detail'])
+        self.assertEqual(dispatches_consumed(self.ledger, run['task'].data['task_key']), 0)
+        self.assertEqual(self.run_provider()['outcome'], 'pending_owner_approval')
+
     def test_p6_01_provider_preconditions(self):
         for timeout in (None, 0.1, 9):
             self.adapter.timeout_seconds = timeout
@@ -455,6 +647,39 @@ class MemoryProviderTests(ProviderContract, unittest.TestCase):
 
 @unittest.skipUnless(SDK_INSTALLED, 'optional anthropic SDK is not installed')
 class SQLiteProviderTests(ProviderContract, unittest.TestCase):
+    def test_p6_17_restart_accounting(self):
+        run = self.run_provider()
+        # A separate file isolates the one unresolved attempt's counts from the completed control.
+        path = self.root / 'restart.sqlite'
+        ledger = SQLiteLedger(path)
+        task = ledger.add('task', {**run['task'].data, 'task_key': 'restart-provider-fixture'})
+        ledger.transition(task.id, 'submitted', 'running', 'ripley', 'fixture')
+        attempt = ledger.add('execution_attempt', {**run['attempt'].data, 'task_id': task.id})
+        expected = {'confirmed_sent': 0, 'uncertain_dispatch': 1, 'budget_slots_consumed': 1}
+        self.assertEqual(provider_attempt_outcome(ledger, attempt), 'unknown')
+        self.assertEqual(provider_dispatch_counts(ledger, 'mock'), expected)
+        self.assertFalse(any(r.kind in ('execution_request', 'result', 'execution_failure')
+                             for r in ledger.records.values()))
+        # SQLiteLedger closes each connection internally; reopening reloads the file.
+        ledger = SQLiteLedger(path)
+        failure = next(r for r in ledger.records.values() if r.kind == 'execution_failure')
+        self.assertEqual(failure.data['stage'], 'interrupted')
+        self.assertEqual(failure.data['remote_outcome'], 'unknown')
+        self.assertIsNone(failure.data['dispatch'])
+        self.assertEqual(failure.data['attempt_id'], attempt.id)
+        self.assertEqual(ledger.task_state(task.id), 'blocked')
+        self.assertEqual(dispatches_consumed(ledger, task.data['task_key']), 1)
+        self.assertEqual(provider_dispatch_counts(ledger, 'mock'), expected)
+        before = tuple(ledger.records.values())
+        with self.assertRaises(ValueError):
+            Ripley(ledger, validator=AvailabilityValidator()).recover(
+                task.id, 'owner', 'fixture', self.adapter, worker=self.worker,
+                allowed_workers=(self.worker.identity,), execution='subprocess')
+        self.assertEqual(tuple(ledger.records.values()), before)
+        self.assertEqual(dispatches_consumed(ledger, task.data['task_key']), 1)
+        self.assertEqual(provider_dispatch_counts(ledger, 'mock'), expected)
+        self.assertEqual(tuple(SQLiteLedger(path).records.values()), before)
+
     def setUp(self):
         factory = patch.dict(globals(), {'Ledger': lambda: SQLiteLedger(self.root / 'ledger.sqlite')})
         factory.start()
