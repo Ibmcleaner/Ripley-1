@@ -220,12 +220,12 @@ class Ripley:
         task_key = content_hash({'domain_id': adapter.domain_id,
             'domain_version': adapter.version, 'task_type': task_type, 'inputs': inputs})
         existing = self.ledger.task_for_key(task_key)
-        dispatch_authorization = None
-        if spec.kind == 'provider':
-            dispatch_authorization = self._provider_dispatch_gate(task_key)
         if existing is not None and self.ledger.task_state(existing.id) not in ('blocked', 'approved', 'rejected'):
             self.ledger.add('duplicate_submission', {'task_key': task_key, 'task_id': existing.id})
             return self._run_return('duplicate_of_existing_task', task=existing)
+        dispatch_authorization = None
+        if spec.kind == 'provider':
+            dispatch_authorization = self._provider_dispatch_gate(task_key)
         return self._execute(adapter, inputs, worker, allowed_workers, correction_budget,
                              timeout, task_key, existing, execution=execution,
                              dispatch_authorization_id=dispatch_authorization)
