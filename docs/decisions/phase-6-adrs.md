@@ -6,7 +6,7 @@ These records continue [ADR-001 through ADR-006](phase-1-adrs.md), [ADR-007](pha
 
 ## ADR-010 — External provider Worker and paid-dispatch governance
 
-Status: **ACCEPTED (revision 8, frozen for PR #11) — drafted by Claude from the Phase 6 whiteboard; revised for thirteen Copilot corrections and three rounds of ChatGPT pre-commit findings; Decision 1 ruled by the owner 2026-11-17 after a read-only Models API confirmation; awaiting docs commit and owner merge.**
+Status: **ACCEPTED — revision 9 (amended during 6B) — drafted by Claude from the Phase 6 whiteboard; revised for thirteen Copilot corrections and three rounds of ChatGPT pre-commit findings; Decision 1 ruled by the owner 2026-11-17 after a read-only Models API confirmation; awaiting docs commit and owner merge.**
 
 Implementation status: **NOT STARTED. Documentation only. No live API calls are authorized by this record.**
 
@@ -108,7 +108,8 @@ dispatch: {
   provider, model, sdk: {package, version},
   provider_request_id: str | null,
   sent_at: ISO-8601 UTC | null,
-  usage: {input_tokens, output_tokens, cache_read_tokens | null} | null
+  usage: {input_tokens, output_tokens, cache_read_tokens | null} | null,
+  prompt_ref: {name, version, content_hash}
 }
 ```
 
@@ -159,7 +160,7 @@ Unit tests never set `RIPLEY_LIVE_DISPATCH`. The parent records `transport_mode`
 
 ### Decision 12 — Prompt as a fact
 
-Every provider attempt records `prompt_ref: {name, version, content_hash}`. Templates live in `ripley/prompts/<name>/<version>.md`; the child reports the hash of the template it rendered from; a test verifies it against the repository file (P6-11).
+Every provider attempt records `prompt_ref: {name, version, content_hash}`. Templates live in `ripley/prompts/<name>/<version>.md`; the child reports the hash of the template it rendered from; a test verifies it against the repository file (P6-11). The parent computes `content_hash` from the repository template before appending the Attempt; the child reports the hash it rendered from in `dispatch.prompt_ref`; a mismatch is a `host_failure` with `remote_outcome: 'unknown'`.
 
 ### Decision 13 — Provider error normalization
 
