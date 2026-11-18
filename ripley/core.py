@@ -3,9 +3,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from types import MappingProxyType
+from pathlib import Path
 import hashlib
 import json
 import math
+import os
 import uuid
 
 
@@ -14,6 +16,10 @@ WATCHDOG_MARGIN_SECONDS = 1.0
 KILL_WAIT_SECONDS = 5.0
 DIAGNOSTICS_CAP_BYTES = 8192
 ENVELOPE_VERSION = '1'
+PARENT_CONTROL_RESERVE_SECONDS = 3.0
+MIN_SDK_TIMEOUT_SECONDS = 5.0
+MIN_PROVIDER_TIMEOUT_SECONDS = 10
+MAX_ROW_TEXT_CHARS = 24000
 
 
 # → blocked from submitted/validated is restart-only; gated by SQLiteLedger.transition
@@ -75,6 +81,37 @@ def decode_protocol_object(raw):
 
 def content_hash(value):
     return hashlib.sha256(canonical_json(value)).hexdigest()
+
+
+def provider_attempt_outcome(ledger, attempt):
+    records = tuple(ledger.records.values())
+    if any(r.kind == 'result' and r.data.get('attempt_id') == attempt.id for r in records):
+        return 'completed'
+    failure = next((r for r in reversed(records) if r.kind == 'execution_failure'
+                    and r.data.get('attempt_id') == attempt.id), None)
+    if failure is None or 'remote_outcome' not in failure.data:
+        return 'unknown'
+    return failure.data['remote_outcome']
+
+
+def dispatches_consumed(ledger, task_key):
+    """Derive charged provider Attempts across both preserved lineage links."""
+    from .workers import spec_for
+
+    newest = ledger.task_for_key(task_key)
+    pending = [newest.id] if newest is not None else []
+    lineage = set()
+    while pending:
+        task_id = pending.pop()
+        if task_id in lineage:
+            continue
+        lineage.add(task_id)
+        task = ledger.records[task_id]
+        pending.extend(task.data[key] for key in ('previous_task_id', 'recovers_task_id')
+                       if task.data.get(key) is not None)
+    return sum(1 for r in ledger.records.values() if r.kind == 'execution_attempt'
+               and r.data['task_id'] in lineage and spec_for(r.data['worker']).kind == 'provider'
+               and provider_attempt_outcome(ledger, r) != 'failed_before_send')
 
 
 @dataclass(frozen=True)
@@ -175,18 +212,23 @@ class Ripley:
             correction_budget=1, execution='inline'):
         self._check_execution(execution)
         self._check_correction_budget(correction_budget)
-        worker = self._checked_worker(worker, allowed_workers)
+        worker, spec = self._checked_worker(worker, allowed_workers)
         timeout = self._timeout(adapter)
+        self._check_provider(spec, execution, timeout)
         inputs = freeze(inputs)
-        task_type = 'predict'
+        task_type = getattr(adapter, 'task_type', 'predict')
         task_key = content_hash({'domain_id': adapter.domain_id,
             'domain_version': adapter.version, 'task_type': task_type, 'inputs': inputs})
         existing = self.ledger.task_for_key(task_key)
+        dispatch_authorization = None
+        if spec.kind == 'provider':
+            dispatch_authorization = self._provider_dispatch_gate(task_key)
         if existing is not None and self.ledger.task_state(existing.id) not in ('blocked', 'approved', 'rejected'):
             self.ledger.add('duplicate_submission', {'task_key': task_key, 'task_id': existing.id})
             return self._run_return('duplicate_of_existing_task', task=existing)
         return self._execute(adapter, inputs, worker, allowed_workers, correction_budget,
-                             timeout, task_key, existing, execution=execution)
+                             timeout, task_key, existing, execution=execution,
+                             dispatch_authorization_id=dispatch_authorization)
 
     @staticmethod
     def _check_execution(execution):
@@ -204,7 +246,44 @@ class Ripley:
             raise PermissionError('worker not allowed')
         if worker is self.validator or worker.identity == self.validator.identity:
             raise PermissionError('worker cannot independently validate its own result')
-        return worker
+        from .workers import spec_for
+
+        return worker, spec_for(worker.identity)
+
+    @staticmethod
+    def _check_provider(spec, execution, timeout):
+        if spec.kind == 'provider':
+            if execution != 'subprocess':
+                raise ValueError('provider workers run only in subprocess execution')
+            if timeout is None or timeout.total_seconds() < MIN_PROVIDER_TIMEOUT_SECONDS:
+                raise ValueError('provider workers require timeout_seconds >= 10')
+
+    def _provider_dispatch_gate(self, task_key):
+        from .workers import PILOT_DISPATCH_BUDGET_ENV, spec_for
+
+        authorization_id = None
+        records = tuple(self.ledger.records.values())
+        if dispatches_consumed(self.ledger, task_key) >= 1:
+            consumed = {r.data.get('dispatch_authorization_id') for r in records
+                        if r.kind == 'execution_attempt'}
+            authorization = next((r for r in records if r.kind == 'dispatch_authorization'
+                and r.data.get('task_key') == task_key and r.data.get('actor') == 'owner'
+                and isinstance(r.data.get('reason'), str) and r.data['reason'].strip()
+                and r.id not in consumed), None)
+            if authorization is None:
+                raise PermissionError('second paid dispatch requires owner dispatch_authorization')
+            authorization_id = authorization.id
+        mode = os.environ.get('RIPLEY_PROVIDER_TRANSPORT')
+        budget = int(os.environ.get(PILOT_DISPATCH_BUDGET_ENV, '25'))
+        count = sum(1 for r in records if r.kind == 'execution_attempt'
+                    and spec_for(r.data['worker']).kind == 'provider'
+                    and r.data.get('transport_mode') == mode
+                    and provider_attempt_outcome(self.ledger, r) != 'failed_before_send')
+        if count >= budget:
+            self.ledger.add('pilot_budget_exhausted', {'budget': budget, 'consumed': count,
+                                                    'transport_mode': mode})
+            raise ValueError('pilot dispatch budget exhausted')
+        return authorization_id
 
     @staticmethod
     def _timeout(adapter):
@@ -262,12 +341,18 @@ class Ripley:
             raise ValueError('recovery requires no external calls')
         if adapter.domain_id != task.data['domain_id'] or adapter.version != task.data['domain_version']:
             raise ValueError('adapter domain and version must match task')
-        worker = self._checked_worker(worker, allowed_workers)
+        worker, spec = self._checked_worker(worker, allowed_workers)
+        from .workers import spec_for
+
+        original_kind = spec_for(attempt.data['worker']).kind if attempt else 'local'
+        if spec.kind != original_kind:
+            raise ValueError('recovery may not change worker kind')
         if not isinstance(actor, str) or not actor or not isinstance(reason, str) or not reason.strip():
             raise ValueError('actor and reason required')
         # Argument checks precede any authorization or exhaustion write.
         self._check_correction_budget(correction_budget)
         timeout = self._timeout(adapter)
+        self._check_provider(spec, execution, timeout)
         lineage = set()
         ancestor = task
         while True:
@@ -297,7 +382,13 @@ class Ripley:
 
     def _execute(self, adapter, inputs, worker, allowed_workers, correction_budget,
                  timeout, task_key, existing, replay_snapshot=None, replay_attempt_id=None,
-                 recovers_task_id=None, execution='inline'):
+                 recovers_task_id=None, execution='inline', dispatch_authorization_id=None):
+        from .workers import spec_for
+
+        spec = spec_for(worker.identity)
+        provider = spec.kind == 'provider'
+        if spec.paid_correction_allowed is False:
+            correction_budget = 0
         if replay_snapshot is None:
             # Domain adapter owns snapshot provenance and data-quality declarations.
             metadata = adapter.snapshot_metadata(inputs)
@@ -312,7 +403,7 @@ class Ripley:
         snapshot = self.ledger.add('snapshot', snapshot_data)
         policy = getattr(adapter, 'replay_policy', None)
         policy = policy if policy in ('safe', 'no') else 'unknown'
-        task_type = 'predict'
+        task_type = getattr(adapter, 'task_type', 'predict')
         task = self.ledger.add('task', {'domain_id': adapter.domain_id, 'task_type': task_type,
             'domain_version': adapter.version, 'task_key': task_key,
             'previous_task_id': existing.id if existing is not None else None,
@@ -320,7 +411,9 @@ class Ripley:
             'replay_policy': policy,
             'input_snapshot_id': snapshot.id, 'dependencies': [], 'allowed_workers': allowed_workers,
             'expected_output': tuple(adapter.expected_output), 'validation_requirements': ('independent',),
-            'evidence_requirements': ('linked-records',), 'resource_ceiling': 'no external calls',
+            'evidence_requirements': ('linked-records',), 'resource_ceiling': spec.external_calls,
+            'dispatch_policy': {'max_dispatches_per_attempt': 1,
+                                'paid_correction_allowed': False} if provider else None,
             'state': 'submitted'})
         self.ledger.transition(task.id, 'submitted', 'running', 'ripley', 'execution started')
         results = []
@@ -331,11 +424,26 @@ class Ripley:
             isolated = execution == 'subprocess'
             started_at = datetime.now(timezone.utc) if isolated else self.clock().astimezone(timezone.utc)
             deadline = started_at + timeout if timeout is not None else None
+            provider_fields = {}
+            if provider:
+                prompt = dict(spec.prompt_ref)
+                template = Path(__file__).parent / 'prompts' / prompt['name'] / (prompt['version'] + '.md')
+                prompt['content_hash'] = hashlib.sha256(template.read_bytes()).hexdigest()
+                provider_fields = {'correction_budget_forced': True,
+                    'transport_mode': os.environ.get('RIPLEY_PROVIDER_TRANSPORT'),
+                    'gates': [{'name': name, 'present': name in os.environ} for name in
+                              ('RIPLEY_PROVIDER_TRANSPORT', 'RIPLEY_LIVE_DISPATCH',
+                               'RIPLEY_ENABLE_TEST_WORKERS')],
+                    'credential_source': {'ref': spec.credentials_ref, 'kind': 'env'},
+                    'sdk': {'package': 'anthropic', 'version': '2.9.0'},
+                    'provider': spec.provider, 'model': spec.model, 'prompt_ref': prompt,
+                    'dispatch_authorization_id': dispatch_authorization_id}
             attempt = self.ledger.add('execution_attempt', {'task_id': task.id,
                 'worker': worker.identity, 'attempt_number': attempt_number + 1, 'execution': execution,
                 **({'started_at': started_at.isoformat()} if isolated else {}),
                 'deadline_at': deadline.isoformat() if deadline is not None else None,
-                'replays_attempt_id': replay_attempt_id if attempt_number == 0 else None})
+                'replays_attempt_id': replay_attempt_id if attempt_number == 0 else None,
+                **provider_fields})
             if isolated:
                 from .isolation import observe_subprocess
 
@@ -344,7 +452,8 @@ class Ripley:
                           'domain_version': task.data['domain_version'], 'worker_identity': worker.identity,
                           'inputs': snapshot.data['inputs'], 'deadline_at': attempt.data['deadline_at']}
                 self.ledger.add('execution_request', {'attempt_id': attempt.id, 'packet': packet})
-                observation = observe_subprocess(packet, deadline, timeout, self._subprocess_wait)
+                observation = observe_subprocess(packet, deadline, timeout, self._subprocess_wait,
+                                                 spec.response_envelope_version)
                 result_fields = observation.result
                 failure_fields = observation.failure
                 late_response = observation.late_response
@@ -352,11 +461,32 @@ class Ripley:
                 result_fields, failure_fields = self._observe_inline(worker, task, snapshot, adapter, deadline)
                 late_response = None
 
+            if provider:
+                response_fields = result_fields if result_fields is not None else failure_fields
+                dispatch = response_fields.get('dispatch') if response_fields else None
+                if dispatch is None and late_response is not None:
+                    dispatch = late_response.get('dispatch')
+                if dispatch is not None and dispatch['prompt_ref'] != attempt.data['prompt_ref']:
+                    result_fields, late_response = None, None
+                    failure_fields = {'stage': 'host_failure', 'message': 'prompt_ref hash mismatch',
+                                      'dispatch': None, 'remote_outcome': 'unknown'}
+                elif result_fields is not None:
+                    result_fields['remote_outcome'] = 'completed'
+                if failure_fields is not None:
+                    if failure_fields['stage'] == 'worker_failure' and dispatch is not None:
+                        failure_fields['provider_error'] = failure_fields['error']['type']
+                        failure_fields['remote_outcome'] = {'not_sent': 'failed_before_send',
+                            'sent': 'failed_after_send', 'possibly_sent': 'unknown'}[dispatch['observation']]
+                    else:
+                        failure_fields.update(dispatch=None, remote_outcome='unknown')
+
             result = None
             if result_fields is not None:
                 result = self.ledger.add('result', {'task_id': task.id, 'attempt_id': attempt.id,
                     'input_snapshot_id': snapshot.id, 'worker': worker.identity, **result_fields,
-                    'evidence': (), 'warnings': (), 'execution': 'deterministic', 'cost': 0})
+                    'evidence': (), 'warnings': (),
+                    'execution': 'provider' if provider else 'deterministic',
+                    'cost': None if provider else 0})
                 results.append(result)
             if failure_fields is not None:
                 failure = self.ledger.add('execution_failure', {'task_id': task.id,
@@ -381,7 +511,10 @@ class Ripley:
                     'original_result_hash': previous.content_hash,
                     'corrected_result_id': result.id, 'corrected_result_hash': result.content_hash})
             try:
-                finding = self.validator.validate(result, adapter)
+                if getattr(self.validator, 'requires_snapshot', False):
+                    finding = self.validator.validate(result, adapter, snapshot=snapshot)
+                else:
+                    finding = self.validator.validate(result, adapter)
                 if (finding.get('result_id') != result.id or
                         finding.get('result_hash') != result.content_hash or
                         finding.get('validator') != self.validator.identity):
@@ -389,7 +522,7 @@ class Ripley:
                 validation = self.ledger.add('validation', finding)
                 validations.append(validation)
                 review = self.ledger.add('review', {'result_id': result.id, 'validation_id': validation.id,
-                    'reviewer': 'ripley-review-policy',
+                    'reviewer': 'ripley-review-policy', 'purpose': 'policy',
                     'result_hash': result.content_hash, 'validation_hash': validation.content_hash,
                     'reason': 'output shape passed' if finding['passed'] else 'invalid output structure',
                     'decision': 'acceptable' if finding['passed'] else 'correction_required'})
@@ -464,6 +597,7 @@ class Ripley:
             raise ValueError('not a review')
         return self.ledger.add('review', {'result_id': prior.data['result_id'],
             'validation_id': prior.data['validation_id'], 'reviewer': reviewer,
+            'purpose': prior.data.get('purpose', 'policy'),
             'result_hash': prior.data['result_hash'],
             'validation_hash': prior.data['validation_hash'],
             'decision': decision, 'reason': reason}, supersedes=prior_id)
