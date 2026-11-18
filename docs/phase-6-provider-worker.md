@@ -189,8 +189,7 @@ The [Windows mock dry-run](pilot/6d-dry-run.md) invokes `scripts/pilot_dispatch.
 with that packet and a dedicated SQLite ledger. The offline tests check the frozen
 bytes, validate the hand-derived output, and exercise the runner's preconditions,
 duplicate handling, owner-authorized redispatch and budget refusal. Mock results
-establish no live account or model acceptance. Owner row verification and the
-owner's Windows dry-run are pending.
+establish no live account or model acceptance. Owner verified all rows 2026-11-18; Windows suite 162 run / 158 pass / 4 expected Phase 5 skips / 0 fail; owner mock dry-run exited 0 with pending_owner_approval. Claude-reviewed at ef54955; merged PR #17. 6D remains NOT AUTHORIZED.
 
 ## Remaining stages
 
