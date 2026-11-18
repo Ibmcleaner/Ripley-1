@@ -1,0 +1,28 @@
+{
+  "players": [
+    {
+      "player_id": "kyle-monangai-chi",
+      "designation": {"value": "questionable", "support": ["kyle-monangai-chi-2026-11-18-status"]},
+      "practice": [],
+      "supersession": [],
+      "conflict": {"flag": false, "support": [], "note": ""},
+      "as_of": "2026-11-18T18:49:07+00:00"
+    },
+    {
+      "player_id": "malik-muhammad-chi",
+      "designation": {"value": "questionable", "support": ["malik-muhammad-chi-2026-11-18-status"]},
+      "practice": [],
+      "supersession": [],
+      "conflict": {"flag": false, "support": [], "note": ""},
+      "as_of": "2026-11-18T18:49:07+00:00"
+    },
+    {
+      "player_id": "tyrique-stevenson-chi",
+      "designation": {"value": "questionable", "support": ["tyrique-stevenson-chi-2026-11-18-status"]},
+      "practice": [],
+      "supersession": [],
+      "conflict": {"flag": false, "support": [], "note": ""},
+      "as_of": "2026-11-18T18:49:07+00:00"
+    }
+  ]
+}

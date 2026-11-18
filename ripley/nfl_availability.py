@@ -36,9 +36,18 @@ class NflAvailabilityAdapter:
 
     def snapshot_metadata(self, inputs):
         if (not isinstance(inputs, Mapping) or
-                set(inputs) != {'game_id', 'team', 'cutoff_at', 'expected_players', 'rows'}):
+                set(inputs) != {'game_id', 'team', 'cutoff_at', 'source_published_at',
+                                'observed_at', 'evidence_at_basis', 'expected_players', 'rows'}):
             raise ValueError('invalid availability input fields')
-        _utc(inputs['cutoff_at'])
+        _utc(inputs['observed_at'])
+        if inputs['source_published_at'] is not None:
+            _utc(inputs['source_published_at'])
+        basis = inputs['evidence_at_basis']
+        if basis not in ('source_published_at', 'observed_at') or inputs[basis] is None:
+            raise ValueError('evidence_at_basis must select a recorded timestamp')
+        evidence_at = _utc(inputs[basis])
+        if _utc(inputs['cutoff_at']) != evidence_at:
+            raise ValueError('cutoff_at must equal the selected evidence timestamp')
         if not all(isinstance(inputs[key], str) and inputs[key] for key in ('game_id', 'team')):
             raise ValueError('game and team required')
         if not all(isinstance(inputs[key], (list, tuple)) for key in ('expected_players', 'rows')):
@@ -56,7 +65,7 @@ class NflAvailabilityAdapter:
         text_size = 0
         for row in inputs['rows']:
             if (not isinstance(row, Mapping) or set(row) != {
-                    'row_id', 'player_id', 'name', 'team', 'position', 'published_at',
+                    'row_id', 'player_id', 'name', 'team', 'position', 'evidence_at',
                     'source', 'report_date', 'text'} or
                     not all(isinstance(v, str) for v in row.values()) or
                     not row['row_id'] or row['row_id'] in row_ids or
@@ -65,7 +74,8 @@ class NflAvailabilityAdapter:
             player = players.get(row['player_id'])
             if player is None or any(row[key] != player[key] for key in player):
                 raise ValueError('row player does not match frozen subject')
-            _utc(row['published_at'])
+            if _utc(row['evidence_at']) != evidence_at:
+                raise ValueError('row evidence_at must equal the selected packet timestamp')
             date.fromisoformat(row['report_date'])
             row_ids.add(row['row_id'])
             seen_players.add(row['player_id'])
@@ -74,7 +84,7 @@ class NflAvailabilityAdapter:
             raise ValueError('expected players must equal distinct row players')
         if text_size > MAX_ROW_TEXT_CHARS:
             raise ValueError('row text exceeds 24000 characters')
-        return {'observed_at': inputs['cutoff_at'], 'sources': ['nfl.com-injury-report'],
+        return {'observed_at': inputs['observed_at'], 'sources': ['nfl.com-injury-report'],
                 'data_quality': 'frozen-fixture'}
 
 
@@ -83,8 +93,8 @@ def _latest(rows, patterns):
     stated = [(row, values) for row, values in stated if values]
     if not stated:
         return set(), [], []
-    timestamp = max(_utc(row['published_at']) for row, _ in stated)
-    governing = [(row, values) for row, values in stated if _utc(row['published_at']) == timestamp]
+    timestamp = max(_utc(row['evidence_at']) for row, _ in stated)
+    governing = [(row, values) for row, values in stated if _utc(row['evidence_at']) == timestamp]
     values = set().union(*(values for _, values in governing))
     return values, [row for row, _ in governing], stated
 
@@ -151,13 +161,13 @@ class AvailabilityValidator:
                 cited.add(row_id)
                 if row['player_id'] != player_id:
                     fail(3, player_id, field)
-                if _utc(row['published_at']) > cutoff:
+                if _utc(row['evidence_at']) > cutoff:
                     fail(7, player_id, field)
                 found.append(row)
             return found
 
         eligible = [r for r in rows.values() if r['player_id'] == player_id
-                    and _utc(r['published_at']) <= cutoff]
+                    and _utc(r['evidence_at']) <= cutoff]
         designation = entry['designation']
         if set(designation) != {'value', 'support'}:
             raise ValueError('invalid designation fields')
@@ -255,7 +265,7 @@ class AvailabilityValidator:
                 set(conflict['support']) != conflicts or not isinstance(conflict['note'], str) or
                 any(field not in conflict['note'] for field in conflict_fields)):
             fail(9, player_id, 'conflict')
-        expected_as_of = max((_utc(rows[i]['published_at']) for i in cited), default=None)
+        expected_as_of = max((_utc(rows[i]['evidence_at']) for i in cited), default=None)
         if expected_as_of is None:
             if entry['as_of'] is not None:
                 fail(7, player_id, 'as_of')

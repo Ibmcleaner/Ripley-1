@@ -1,4 +1,5 @@
 """ADR-010 acceptance against the real SDK and an offline transport."""
+import ast
 import importlib.util
 import copy
 import hashlib
@@ -114,6 +115,21 @@ class SdkMockTransportTests(unittest.TestCase):
                     self.assertNotIn('import AnthropicWorker', stripped)
 
 
+        for source in Path('scripts').glob('*.py'):
+            for node in ast.walk(ast.parse(source.read_text('utf-8'))):
+                if isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    modules = [node.module or ''] + [
+                        f'{node.module}.{alias.name}' for alias in node.names]
+                else:
+                    continue
+                for module in modules:
+                    for forbidden in ('anthropic', 'httpx2', 'ripley.providers'):
+                        self.assertFalse(module == forbidden or module.startswith(forbidden + '.'),
+                                         f'{source}:{node.lineno} imports {module}')
+
+
 DAY1, DAY2 = '2026-11-15', '2026-11-16'
 T1, T2 = DAY1 + 'T18:00:00+00:00', DAY2 + 'T18:00:00+00:00'
 
@@ -124,9 +140,9 @@ def availability_fixture():
                for i, name in names.items()]
     rows = []
 
-    def row(row_id, player_id, text, published=T2, report_date=DAY1):
+    def row(row_id, player_id, text, evidence_at=T2, report_date=DAY1):
         rows.append({**next(p for p in players if p['player_id'] == player_id),
-                     'row_id': row_id, 'text': text, 'published_at': published,
+                     'row_id': row_id, 'text': text, 'evidence_at': evidence_at,
                      'report_date': report_date, 'source': 'nfl.com-injury-report'})
 
     row('a_old', 'A', 'Designation D', T1)
@@ -161,6 +177,17 @@ def availability_fixture():
     ]}
     return {'game_id': 'fixture-game', 'team': 'TST', 'cutoff_at': '2026-11-17T12:00:00+00:00',
             'expected_players': players, 'rows': rows}, output
+
+
+def single_capture_fixture():
+    """Submit the latest capture to the adapter; P6-13 tests both captures directly."""
+    packet, output = availability_fixture()
+    packet['observed_at'] = packet['cutoff_at']
+    packet.update(source_published_at=T2, evidence_at_basis='source_published_at', cutoff_at=T2)
+    packet['rows'] = [row for row in packet['rows'] if row['evidence_at'] == T2]
+    for player in output['players']:
+        player['supersession'] = []
+    return packet, output
 
 
 class ValidatorContractTests(unittest.TestCase):
@@ -220,7 +247,7 @@ class ValidatorContractTests(unittest.TestCase):
         future['rows'] = [r for r in future['rows'] if r['player_id'] == 'A']
         future['expected_players'] = future['expected_players'][:1]
         for row in future['rows']:
-            row['published_at'] = '2026-11-18T12:00:00+00:00'
+            row['evidence_at'] = '2026-11-18T12:00:00+00:00'
         absent = {'players': [{'player_id': 'A', 'designation': {'value': 'unknown', 'support': []},
             'practice': [], 'supersession': [], 'conflict': {'flag': False, 'support': [], 'note': ''},
             'as_of': None}]}
@@ -231,7 +258,7 @@ class ValidatorContractTests(unittest.TestCase):
         newer_practice = copy.deepcopy(inputs)
         newer_practice['rows'].append({**newer_practice['rows'][1], 'row_id': 'a_practice',
             'text': 'Practice full', 'report_date': DAY2,
-            'published_at': '2026-11-17T10:00:00+00:00'})
+            'evidence_at': '2026-11-17T10:00:00+00:00'})
         self.assertTrue(self.check(newer_practice, output)['passed'])
 
 
@@ -240,7 +267,7 @@ class ProviderFixtures:
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        self.inputs, self.output = availability_fixture()
+        self.inputs, self.output = single_capture_fixture()
         self.output_path = self.root / 'output.json'
         self.output_path.write_text(json.dumps(self.output), encoding='utf-8')
         self.ledger = Ledger()

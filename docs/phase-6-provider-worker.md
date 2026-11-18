@@ -1,6 +1,6 @@
 # Phase 6 external provider Worker
 
-Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). NO LIVE PROVIDER CALL HAS BEEN MADE. 6D not authorized; 6E pending. NOT production validated.**
+Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). NO LIVE PROVIDER CALL HAS BEEN MADE. 6D not authorized; 6E pending. NOT production validated.** 6D-prep artifacts present (PR #17).
 
 ## Implemented boundary
 
@@ -174,6 +174,23 @@ Only the separately owner-authorized 6D pilot can establish that.
 - Practice evidence is grouped by a row's `report_date` or an explicit ISO date
   mentioned in its text. The fixtures use individual dated rows. Interpreting a
   live source's weekday columns belongs to the later acquisition work.
+
+## 6D-prep
+
+The designation-only Bears packet `TB-at-CHI-2026-11-08` contains three players
+and three rows. Its SHA-256 is
+`1ce3f332e1e8ff7aa113bbb0cd2688583086c29a050be909d9607e1a3c2c0aa6`.
+Revision 10 records the owner's capture time separately from the nullable source
+publication time. Each row uses the selected timestamp for cutoff and validation.
+The expected output and [transcription provenance](../fixtures/nfl-availability/TB-at-CHI-2026-11-08.provenance.md)
+accompany the packet.
+
+The [Windows mock dry-run](pilot/6d-dry-run.md) invokes `scripts/pilot_dispatch.py`
+with that packet and a dedicated SQLite ledger. The offline tests check the frozen
+bytes, validate the hand-derived output, and exercise the runner's preconditions,
+duplicate handling, owner-authorized redispatch and budget refusal. Mock results
+establish no live account or model acceptance. Owner row verification and the
+owner's Windows dry-run are pending.
 
 ## Remaining stages
 
