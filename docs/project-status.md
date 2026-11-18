@@ -12,7 +12,8 @@ Scope: approved Phase 1 documentation handoff for Ibmcleaner/Ripley-1.
 | Phase 1 documentation | Captured in this documentation branch; merge status is tracked by the pull request |
 | Phase 2 implementation | NOT STARTED |
 | Phase 6A ADR-010 | COMPLETE (PR #11, main a7cbfd2) |
-| Phase 6B | IMPLEMENTED prototype, pending review |
+| Phase 6B + 6C | ACCEPTED (mock transport only; PR #12, PR #15) |
+| Phase 6D live pilot | NOT AUTHORIZED |
 
 ## Maturity vocabulary
 
