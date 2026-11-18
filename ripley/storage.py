@@ -51,7 +51,9 @@ class SQLiteLedger(Ledger):
                     self.add('execution_failure', {'task_id': task.id,
                         'stage': 'timeout' if overdue else 'interrupted',
                         'attempt_id': attempts[-1].id if attempts else None,
-                        'message': 'deadline_exceeded_before_restart' if overdue else 'interrupted_by_restart'})
+                        'message': 'deadline_exceeded_before_restart' if overdue else 'interrupted_by_restart',
+                        **({'dispatch': None, 'remote_outcome': 'unknown'}
+                           if attempts and 'transport_mode' in attempts[-1].data else {})})
                     self.transition(task.id, state, 'blocked', 'ripley', 'interrupted_by_restart')
         finally:
             self._opening = False

@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 import re
 import socket
+import sys
+import threading
+import time
 
 from .core import (MIN_SDK_TIMEOUT_SECONDS, PARENT_CONTROL_RESERVE_SECONDS,
                    canonical_json, decode_protocol_object)
@@ -77,15 +80,20 @@ def _mock_transport():
     def handler(request):
         global MOCK_REQUESTS_SEEN
         MOCK_REQUESTS_SEEN += 1
-        script = os.environ.get('RIPLEY_MOCK_PROVIDER_SCRIPT', '200:valid')
-        if script == 'reset_after_write':
+        scripts = os.environ.get('RIPLEY_MOCK_PROVIDER_SCRIPT', '200:valid').split('+')
+        if not any(s in ('200:valid', '200:malformed', '500:leaky', 'reset_after_write',
+                         'read_timeout') or s.isdigit() for s in scripts):
+            scripts.append('200:valid')
+        if 'hang_after_send' in scripts:
+            threading.Event().wait()
+        if 'reset_after_write' in scripts:
             raise httpx2.RemoteProtocolError('offline reset after request write')
-        if script == 'read_timeout':
+        if 'read_timeout' in scripts:
             raise httpx2.ReadTimeout('offline read timeout', request=request)
         headers = {'request-id': 'req_offline_provider'}
-        if script == '200:malformed':
+        if '200:malformed' in scripts:
             return httpx2.Response(200, headers=headers, content=b'not a provider response')
-        if script == '200:valid':
+        if '200:valid' in scripts:
             output = json.loads(Path(os.environ['RIPLEY_MOCK_PROVIDER_OUTPUT_FILE']).read_text('utf-8'))
             return httpx2.Response(200, headers=headers, json={
                 'id': 'msg_offline_provider', 'type': 'message', 'role': 'assistant',
@@ -93,11 +101,19 @@ def _mock_transport():
                 'text': canonical_json(output).decode('utf-8')}],
                 'stop_reason': 'end_turn', 'stop_sequence': None,
                 'usage': {'input_tokens': 100, 'output_tokens': 60, 'cache_read_input_tokens': 0}})
-        status = int(script)
+        message = 'offline fixture'
+        if '500:leaky' in scripts:
+            secret = os.environ['RIPLEY_ANTHROPIC_API_KEY']
+            message = '\n'.join([secret, *os.environ.get('RIPLEY_TEST_CANARIES', '').split('|'),
+                                 'Authorization: Bearer ' + secret])
+            headers['authorization'] = 'Bearer ' + secret
+            status = 500
+        else:
+            status = int(next(s for s in scripts if s.isdigit()))
         error_type = {400: 'invalid_request_error', 401: 'authentication_error',
                       429: 'rate_limit_error', 500: 'api_error'}[status]
         return httpx2.Response(status, headers=headers, json={
-            'type': 'error', 'error': {'type': error_type, 'message': 'offline fixture'}})
+            'type': 'error', 'error': {'type': error_type, 'message': message}})
 
     return httpx2.MockTransport(handler)
 
@@ -114,6 +130,13 @@ class ProviderWorker:
         return value
 
     def produce(self, task, snapshot, adapter):
+        mode = os.environ.get('RIPLEY_PROVIDER_TRANSPORT')
+        mock = mode == 'mock' and os.environ.get('RIPLEY_ENABLE_TEST_WORKERS') == '1'
+        scripts = os.environ.get('RIPLEY_MOCK_PROVIDER_SCRIPT', '200:valid').split('+') if mock else []
+        for script in scripts:
+            if script.startswith('startup_delay:'):
+                time.sleep(float(script.partition(':')[2]))
+        stage = 'before_client'
         self._secret = None
         self._canaries = []
         if os.environ.get('RIPLEY_ENABLE_TEST_WORKERS') == '1':
@@ -127,12 +150,11 @@ class ProviderWorker:
                     'prompt_ref': prompt_ref}
 
         def error(kind, message, detail=''):
-            if os.environ.get('RIPLEY_PROVIDER_TRANSPORT') == 'mock':
-                detail += f' mock_requests_seen={MOCK_REQUESTS_SEEN}'
+            if mode == 'mock' or os.environ.get('RIPLEY_ENABLE_TEST_WORKERS') == '1':
+                detail += (f' mock_requests_seen={MOCK_REQUESTS_SEEN}'
+                           f' sdk_invoked={str(stage == "after_call").lower()}')
             return ProviderOutcome(dispatch, error={'type': kind, 'message': message, 'detail': detail})
 
-        mode = os.environ.get('RIPLEY_PROVIDER_TRANSPORT')
-        mock = mode == 'mock' and os.environ.get('RIPLEY_ENABLE_TEST_WORKERS') == '1'
         live = mode == 'live' and os.environ.get('RIPLEY_LIVE_DISPATCH') == '1'
         if not (mock or live):
             return error('live_gate_closed', 'provider transport gate closed')
@@ -153,7 +175,7 @@ class ProviderWorker:
         raw = None
         try:
             options = {'api_key': self._secret, 'max_retries': 0, 'timeout': sdk_timeout}
-            if mock:
+            if mock and 'bypass_transport' not in scripts:
                 options['http_client'] = httpx2.Client(transport=_mock_transport())
             with anthropic.Anthropic(**options) as client:
                 stage = 'before_call'
@@ -163,6 +185,9 @@ class ProviderWorker:
                           adapter.expected_output.items()}, 'required': list(adapter.expected_output),
                           'additionalProperties': False}
                 content = template.decode('utf-8') + '\n---\n' + canonical_json(snapshot['inputs']).decode('utf-8')
+                if 'leak_stderr' in scripts:
+                    sys.stderr.write('\n'.join(['Traceback (synthetic fixture):', self._secret,
+                        *self._canaries, 'Authorization: Bearer ' + self._secret]) + '\n')
                 stage = 'after_call'
                 dispatch['sent_at'] = datetime.now(timezone.utc).isoformat()
                 raw = client.messages.with_raw_response.create(model=self.model,
