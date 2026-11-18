@@ -1,7 +1,7 @@
 # Phase 6D — Owner authorization for live dispatch #1
 
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC
-Date (CT): ____________
+Date (CT): _11/18/26___________
 main at authorization: aac4732
 Packet: fixtures/nfl-availability/TB-at-CHI-2026-11-08.json
 Packet SHA-256: 1ce3f332e1e8ff7aa113bbb0cd2688583086c29a050be909d9607e1a3c2c0aa6
@@ -18,4 +18,4 @@ I authorize exactly one live dispatch of the packet above under ADR-010 revision
 This record does not authorize a second dispatch, any other packet, any other prompt version, or any other model.
 Any outcome other than remote_outcome: completed ends the authorization; a further dispatch requires a new record.
 
-Signed: ____________
+Signed: _Robert legorreta___________
