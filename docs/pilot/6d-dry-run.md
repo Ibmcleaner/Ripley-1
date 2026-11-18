@@ -6,10 +6,10 @@ a packet-bound authorization file, a budget and typed interactive confirmation.
 This PR does not authorize it.** A live procedure requires separate written owner
 authorization and has not been written.
 
-**Fixture pending.** Run the procedure below after the Bears packet, expected output,
-and provenance have landed on this branch and Rob has checked the rows against the
-report. The draft currently exercises the runner using the existing synthetic
-Phase 6 test control. That execution supplies no Bears evidence.
+Compare the three designation rows with the owner-supplied Bears screenshot and
+complete the verification line in the [packet provenance](../../fixtures/nfl-availability/TB-at-CHI-2026-11-08.provenance.md)
+after checking them. The expected output has three questionable designations and
+empty practice arrays. Its only use in this command is the local mock response.
 
 ## Prepare a mock session
 
@@ -22,9 +22,7 @@ if (Test-Path 'Env:RIPLEY_*') { throw 'Use a clean PowerShell session for the mo
 python -m venv .venv6
 .\.venv6\Scripts\Activate.ps1
 python -m pip install -r requirements-providers.txt
-$packets = @(Get-ChildItem -LiteralPath .\fixtures\nfl-availability -Filter '*.json' -File -ErrorAction Stop | Where-Object { $_.Name -notlike '*.expected.json' })
-if ($packets.Count -ne 1) { throw 'One owner-verified packet is required.' }
-$packet = $packets[0].FullName
+$packet = (Get-Item -LiteralPath .\fixtures\nfl-availability\TB-at-CHI-2026-11-08.json -ErrorAction Stop).FullName
 $expected = [IO.Path]::ChangeExtension($packet, 'expected.json')
 if (!(Test-Path -LiteralPath $expected -PathType Leaf)) { throw 'Missing expected output.' }
 $ledger = Join-Path $PWD 'pilot-mock.sqlite'

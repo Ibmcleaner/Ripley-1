@@ -14,7 +14,7 @@ from ripley.core import Ledger, Ripley, dispatches_consumed
 from ripley.nfl_availability import AvailabilityValidator, NflAvailabilityAdapter
 from ripley.storage import SQLiteLedger
 from scripts.pilot_dispatch import preconditions
-from test_provider import SDK_INSTALLED, availability_fixture
+from test_provider import SDK_INSTALLED, single_capture_fixture
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,8 +24,6 @@ FIXTURES = ROOT / 'fixtures' / 'nfl-availability'
 @unittest.skipUnless(SDK_INSTALLED, 'optional anthropic SDK is not installed')
 class PilotRunnerTests(unittest.TestCase):
     def frozen_packet(self):
-        if not FIXTURES.exists():
-            self.skipTest('owner source dates missing; no frozen injury-report packet')
         packets = [p for p in FIXTURES.glob('*.json') if not p.name.endswith('.expected.json')]
         self.assertEqual(len(packets), 1, 'the pilot requires one frozen packet')
         return packets[0]
@@ -40,24 +38,43 @@ class PilotRunnerTests(unittest.TestCase):
         adapter = NflAvailabilityAdapter()
         adapter.snapshot_metadata(packet)
         self.assertEqual(packet['game_id'], path.stem)
-        self.assertTrue(packet['cutoff_at'].endswith('+00:00'))
+        self.assertIsNone(packet['source_published_at'])
+        self.assertEqual(packet['observed_at'], '2026-11-18T18:49:07+00:00')
+        self.assertEqual(packet['evidence_at_basis'], 'observed_at')
+        self.assertEqual(packet['cutoff_at'], packet[packet['evidence_at_basis']])
+        self.assertEqual(len(packet['rows']), 3)
+        self.assertEqual(len(packet['expected_players']), 3)
         forbidden = r'\b(?:O|D|Q|out|doubtful|questionable|full|limited|dnp|did not practice)\b|\d{4}-\d\d-\d\d'
         for row in packet['rows']:
-            self.assertEqual(row['published_at'], packet['cutoff_at'])
+            self.assertEqual(row['evidence_at'], packet['cutoff_at'])
+            self.assertEqual(row['report_date'], '2026-11-18')
             status = re.fullmatch(r'Injury: ([^;\r\n]+); Game status: (Out|Doubtful|Questionable)', row['text'])
-            if status:
-                self.assertNotRegex(status[1], re.compile(forbidden, re.IGNORECASE))
-                kind = 'status'
-            else:
-                self.assertIsNotNone(re.fullmatch(r'Practice: (full|limited|dnp)', row['text']))
-                kind = 'practice'
-            self.assertEqual(row['row_id'], f"{row['player_id']}-{row['report_date']}-{kind}")
+            self.assertIsNotNone(status, 'the frozen pilot contains designation rows only')
+            self.assertNotRegex(status[1], re.compile(forbidden, re.IGNORECASE))
+            self.assertEqual(row['row_id'], f"{row['player_id']}-{row['report_date']}-status")
         output = json.loads(path.with_suffix('.expected.json').read_bytes())
+        for player in output['players']:
+            self.assertEqual(player['practice'], [])
         ledger = Ledger()
         snapshot = ledger.add('snapshot', {'inputs': packet})
         result = ledger.add('result', {'output': output})
         finding = AvailabilityValidator().validate(result, adapter, snapshot)
         self.assertTrue(finding['passed'], finding['failures'])
+
+        for changed in ({'evidence_at_basis': 'source_published_at'},
+                        {'evidence_at_basis': 'cutoff_at'},
+                        {'observed_at': None},
+                        {'source_published_at': '2026-11-18T12:49:07-06:00'},
+                        {'cutoff_at': '2026-11-18T18:49:08+00:00'},
+                        {'rows': [{**row, 'evidence_at': '2026-11-18T18:49:08+00:00'}
+                                  for row in packet['rows']]}):
+            with self.subTest(field=next(iter(changed))), self.assertRaises(ValueError):
+                adapter.snapshot_metadata({**packet, **changed})
+        published = '2026-11-18T18:00:00+00:00'
+        source_based = {**packet, 'source_published_at': published,
+                        'evidence_at_basis': 'source_published_at', 'cutoff_at': published,
+                        'rows': [{**row, 'evidence_at': published} for row in packet['rows']]}
+        self.assertEqual(adapter.snapshot_metadata(source_based)['observed_at'], packet['observed_at'])
 
     def exercise_runner(self, packet, output, root):
         path = root / 'pilot.sqlite'
@@ -150,7 +167,7 @@ class PilotRunnerTests(unittest.TestCase):
     def test_p6d_02_runner_mock_dry_run(self):
         with self.subTest(packet='existing synthetic Phase 6 control'), tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            packet, output = availability_fixture()
+            packet, output = single_capture_fixture()
             packet_file, output_file = root / 'synthetic.json', root / 'synthetic.expected.json'
             packet_file.write_text(json.dumps(packet), encoding='utf-8')
             output_file.write_text(json.dumps(output), encoding='utf-8')
