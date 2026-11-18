@@ -1,6 +1,6 @@
 # Phase 6 external provider Worker
 
-Status: **IMPLEMENTED prototype (6B accepted; 6C tests added), ChatGPT-locally tested; awaiting Claude review and owner acceptance. NO LIVE PROVIDER CALL HAS BEEN MADE. NOT production validated.**
+Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). NO LIVE PROVIDER CALL HAS BEEN MADE. 6D not authorized; 6E pending. NOT production validated.**
 
 ## Implemented boundary
 
@@ -147,7 +147,7 @@ Phase 2–5 test files are byte-identical to baseline `053137d`.
 | P6-15 | Startup delay exhausts the minimum SDK allowance before invocation, while the same declared deadline succeeds without delay. |
 | P6-17 | A bare SQLite provider attempt consumes an uncertain slot before and after restart; interruption adds no invented dispatch observation, recovery is refused, and a second reopen appends nothing. |
 
-Independent Windows execution of 6C and Claude review are pending. No 6C test
+Owner independently executed 6C on Windows with **159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail**. Claude review complete at eaaa192. No 6C test
 adds a Windows skip; the four existing Phase 5 signal skips remain unchanged.
 These tests do not prove that the account/model accepts the live request.
 Only the separately owner-authorized 6D pilot can establish that.
@@ -177,10 +177,9 @@ Only the separately owner-authorized 6D pilot can establish that.
 
 ## Remaining stages
 
-6C tests and the narrowly assigned supporting changes are implemented, pending
-Claude review and independent owner Windows verification before acceptance.
+6C is accepted following Claude review and independent Linux and owner Windows execution.
 
-6D requires a separate owner authorization for the gated live pilot and establishes
+6D requires a separate written owner authorization for the gated live pilot and establishes
 whether the exact model/account accepts the request. 6E adds owner quality grading
 and the seven-count pilot report. Currency reporting, provider replay, additional
 providers, predictions, and later deployment features retain their ADR deferrals.
