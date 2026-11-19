@@ -1,6 +1,6 @@
 # Phase 6 external provider Worker
 
-Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). NO LIVE PROVIDER CALL HAS BEEN MADE. 6D not authorized; 6E pending. NOT production validated.** 6D-prep artifacts present (PR #17). Sprint 5 schema/diagnostics fix IMPLEMENTED, pending review (PR #27)
+Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). NO LIVE PROVIDER CALL HAS BEEN MADE. 6D not authorized; 6E pending. NOT production validated.** 6D-prep artifacts present (PR #17). Sprint 5 schema/diagnostics fix ACCEPTED — Claude-reviewed at 63c8f5f; Linux 167 OK (Claude); Windows 167 run / 163 pass / 4 expected Phase 5 skips / 0 fail (owner); owner mock dry-run exited 0; merged PR #27
 
 ## Implemented boundary
 
@@ -209,6 +209,8 @@ When available, the provider error type and message are sanitized before their
 respective 100- and 500-character caps are applied in `error.detail`. P6-19
 places a synthetic credential across the cap boundary. P6-20 checks that a
 missing or invalid schema consumes zero dispatch slots.
+
+Output schema canonical SHA-256 (sorted keys, compact separators): `bbefc6a8fce78143a8c0ff5eb918db4a43373af7bbe578348fca96f3dd47f41a`.
 
 Mock mode now enforces Anthropic's documented structural rules for structured-output schemas. It still cannot prove that the live API accepts this schema; only a later owner-authorized dispatch can.
 
