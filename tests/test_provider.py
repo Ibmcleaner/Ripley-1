@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -38,9 +39,7 @@ class SdkMockTransportTests(unittest.TestCase):
             import httpx2
 
             self.assertEqual(anthropic.__version__, '2.9.0')
-            schema = {'type': 'object', 'properties': {'players': {'type': 'array',
-                       'items': {'type': 'object'}}}, 'required': ['players'],
-                      'additionalProperties': False}
+            schema = NflAvailabilityAdapter.output_schema
             format_config = {'format': {'type': 'json_schema', 'schema': schema}}
             observed = []
 
@@ -128,6 +127,73 @@ class SdkMockTransportTests(unittest.TestCase):
                     for forbidden in ('anthropic', 'httpx2', 'ripley.providers'):
                         self.assertFalse(module == forbidden or module.startswith(forbidden + '.'),
                                          f'{source}:{node.lineno} imports {module}')
+
+
+    def test_p6_18_output_schema_is_structurally_valid(self):
+        import anthropic
+        import httpx2
+        from ripley import providers
+
+        schema = NflAvailabilityAdapter.output_schema
+        self.assertEqual(providers.schema_violations(schema), [])
+        for invalid in (old_coarse_schema(),
+                        {'type': 'object', 'properties': {'a': {'type': 'string'}},
+                         'additionalProperties': False},
+                        {'anyOf': [{'type': 'string'}], 'type': 'string'},
+                        {'type': 'string', 'minLength': 1}):
+            with self.subTest(invalid=invalid):
+                self.assertTrue(providers.schema_violations(invalid))
+
+        def nodes(node):
+            yield node
+            children = list(node.get('properties', {}).values()) + node.get('anyOf', [])
+            if 'items' in node:
+                children.append(node['items'])
+            for child in children:
+                yield from nodes(child)
+
+        self.assertLessEqual(sum('anyOf' in node for node in nodes(schema)), 16)
+        self.assertEqual(sum(len(set(node['properties']) - set(node['required']))
+                             for node in nodes(schema) if 'properties' in node), 0)
+
+        def conforms(node, value):
+            if 'anyOf' in node:
+                return any(conforms(child, value) for child in node['anyOf'])
+            kind = node['type']
+            if kind == 'object':
+                props = node['properties']
+                return (isinstance(value, dict) and set(node['required']) <= set(value)
+                        and (node['additionalProperties'] or set(value) <= set(props))
+                        and all(conforms(props[k], value[k]) for k in value if k in props))
+            if kind == 'array':
+                return isinstance(value, list) and all(conforms(node['items'], item) for item in value)
+            types = {'boolean': bool, 'string': str, 'null': type(None)}
+            return type(value) is types[kind] and ('enum' not in node or value in node['enum'])
+
+        frozen = Path('fixtures/nfl-availability/TB-at-CHI-2026-11-08.expected.json')
+        for output in (json.loads(frozen.read_text('utf-8')), availability_fixture()[1],
+                       single_capture_fixture()[1]):
+            self.assertTrue(conforms(schema, output))
+        self.assertFalse(conforms(schema, {**output, 'extra': True}))
+        self.assertFalse(conforms(schema, {}))
+        output['players'][0]['designation']['value'] = 'probable'
+        self.assertFalse(conforms(schema, output))
+
+        with patch.dict(os.environ, {'RIPLEY_MOCK_PROVIDER_SCRIPT': '200:valid'}), \
+                patch.object(providers, 'MOCK_REQUESTS_SEEN', 0), \
+                anthropic.Anthropic(api_key='synthetic-offline', max_retries=0, timeout=5,
+                    http_client=httpx2.Client(transport=providers._mock_transport())) as client:
+            with self.assertRaises(anthropic.BadRequestError) as error:
+                client.messages.create(model='claude-haiku-5-5', max_tokens=1024,
+                    messages=[{'role': 'user', 'content': 'offline fixture'}],
+                    output_config={'format': {'type': 'json_schema', 'schema': old_coarse_schema()}})
+            self.assertEqual(error.exception.status_code, 400)
+            self.assertEqual(providers.MOCK_REQUESTS_SEEN, 1)
+
+
+def old_coarse_schema():
+    return {'type': 'object', 'properties': {'players': {'type': 'array', 'items': {'type': 'object'}}},
+            'required': ['players'], 'additionalProperties': False}
 
 
 DAY1, DAY2 = '2026-11-15', '2026-11-16'
@@ -326,6 +392,56 @@ class ProviderContract(ProviderFixtures):
                     self.assertNotIn(secret, value)
         for record in self.ledger.records.values():
             walk(record.data)
+
+    def test_p6_19_provider_error_detail(self):
+        secret = 'sk-ant-test-synthetic-LEAKCHECK-0123456789'
+        canaries = ('CANARYFRAG1', 'CANARYFRAG2')
+        for script in ('400', '400:straddle'):
+            self.inputs['game_id'] = script
+            with self.subTest(script=script), patch.dict(os.environ, {
+                    'RIPLEY_ANTHROPIC_API_KEY': secret, 'RIPLEY_TEST_CANARIES': '|'.join(canaries),
+                    'RIPLEY_MOCK_PROVIDER_SCRIPT': script}):
+                run = self.run_provider()
+                failure = run['failure'].data
+                self.assertEqual(run['outcome'], 'blocked_worker_failure')
+                self.assertEqual(failure['provider_error'], 'invalid_request')
+                self.assertEqual(failure['dispatch']['observation'], 'sent')
+                self.assertEqual(failure['remote_outcome'], 'failed_after_send')
+                self.assertEqual(failure['error']['message'], 'provider request failed')
+                detail = failure['error']['detail']
+                self.assertIn('BadRequestError status=400 provider_type=invalid_request_error ', detail)
+                message = detail.split('provider_message=')[1].split(' mock_requests_seen=')[0]
+                if script == '400:straddle':
+                    self.assertEqual(message, 'x' * 490 + '[REDACTED]')
+                else:
+                    self.assertEqual(message, 'offline fixture')
+                self.assert_no_secrets((secret, secret[:20], secret[-10:], *canaries))
+
+    def test_p6_20_schema_required_before_send(self):
+        # The host resolves its own adapter. Install the test subclass only inside
+        # the real child interpreter, leaving its stdin/stdout protocol intact.
+        launch = subprocess.Popen
+        for variant in ('missing', 'coarse'):
+            setup = ("delattr(host.NflAvailabilityAdapter, 'output_schema')"
+                     if variant == 'missing' else f'Adapter.output_schema = {old_coarse_schema()!r}')
+            child = ("from ripley import worker_host as host\n"
+                     "class Adapter(host.NflAvailabilityAdapter): pass\n"
+                     + setup + "\nhost.ADAPTERS[Adapter.domain_id] = Adapter\n"
+                     "raise SystemExit(host.main())")
+
+            def launch_host(args, **kwargs):
+                self.assertEqual(args[1:], ['-m', 'ripley.worker_host'])
+                return launch([args[0], '-c', child], **kwargs)
+
+            with self.subTest(variant=variant), patch('ripley.isolation.subprocess.Popen', launch_host):
+                run = self.run_provider()
+                failure = run['failure'].data
+                self.assertEqual(run['outcome'], 'blocked_worker_failure')
+                self.assertEqual(failure['provider_error'], 'invalid_request')
+                self.assertEqual(failure['dispatch']['observation'], 'not_sent')
+                self.assertEqual(failure['remote_outcome'], 'failed_before_send')
+                self.assertIn('mock_requests_seen=0 sdk_invoked=false', failure['error']['detail'])
+                self.assertEqual(dispatches_consumed(self.ledger, run['task'].data['task_key']), 0)
 
     def test_p6_02_missing_credential_and_record_scan(self):
         with patch.dict(os.environ):

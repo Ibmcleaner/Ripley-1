@@ -26,6 +26,15 @@ PRACTICE = {'full': r'\bfull\b', 'limited': r'\blimited\b',
             'dnp': r'\b(?:dnp|did not practice)\b'}
 
 
+def _object_schema(**properties):
+    return {'type': 'object', 'properties': properties, 'required': list(properties),
+            'additionalProperties': False}
+
+
+def _array_schema(items):
+    return {'type': 'array', 'items': items}
+
+
 class NflAvailabilityAdapter:
     domain_id = 'nfl-availability'
     version = '1'
@@ -33,6 +42,21 @@ class NflAvailabilityAdapter:
     replay_policy = 'no'
     timeout_seconds = 45
     expected_output = {'players': list}
+    output_schema = _object_schema(players=_array_schema(_object_schema(
+        player_id={'type': 'string'},
+        designation=_object_schema(
+            value={'type': 'string', 'enum': ['out', 'doubtful', 'questionable', 'unlisted', 'unknown']},
+            support=_array_schema({'type': 'string'})),
+        practice=_array_schema(_object_schema(
+            date={'type': 'string'}, status={'type': 'string', 'enum': ['full', 'limited', 'dnp']},
+            support=_array_schema({'type': 'string'}))),
+        supersession=_array_schema(_object_schema(
+            field={'type': 'string'}, governing={'type': 'string'},
+            superseded=_array_schema({'type': 'string'}))),
+        conflict=_object_schema(flag={'type': 'boolean'}, support=_array_schema({'type': 'string'}),
+                                note={'type': 'string'}),
+        as_of={'anyOf': [{'type': 'string'}, {'type': 'null'}]},
+    )))
 
     def snapshot_metadata(self, inputs):
         if (not isinstance(inputs, Mapping) or
