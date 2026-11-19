@@ -19,6 +19,7 @@ Scope: approved Phase 1 documentation handoff for Ibmcleaner/Ripley-1.
 | Phase 6D credential check #1 | HTTP 200, model available; dispatch #2 not authorized |
 | Phase 6D dispatch #2 | invalid_request (HTTP 400, failed_after_send); request schema fix required; no further dispatch authorized |
 | Sprint 5 — output schema + provider error diagnostics | ACCEPTED (mock-only; PR #27) |
+| FI-001 — dispatch #2 HTTP 400 root-cause analysis | Offline RCA complete; historical cause UNCONFIRMED; awaiting provider support; dispatch #3 paused and unauthorized |
 
 ## Maturity vocabulary
 
