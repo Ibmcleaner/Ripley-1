@@ -1,7 +1,7 @@
 # Phase 6D — Owner authorization for live dispatch #2  
  
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC  
-Date (CT): ____________  
+Date (CT): _11/18/26___________  
 main at authorization: 2850114  
 History: dispatch #1 ended failed_after_send / auth_rejected (HTTP 401) because an abbreviated credential had been stored; see docs/pilot/6d-dispatch-01.md. The stored value was corrected. Credential check #1 returned HTTP 200 for claude-haiku-5-5 (request id req_011ChBiTetuYkBFBxdVnmWg1); see docs/pilot/6d-credential-check-01.md. No model output has yet been produced.  
 Packet: fixtures/nfl-availability/TB-at-CHI-2026-11-08.json  
@@ -23,5 +23,5 @@ A runner refusal before the DISPATCH confirmation prompt sends nothing and does 
 This record does not authorize a third dispatch, any other packet, any other prompt version, or any other model.  
 Any outcome other than remote_outcome: completed ends the authorization; a further dispatch requires a new record.  
  
-Signed: ____________  
+Signed: __Robert Legorreta__________  
 
