@@ -18,3 +18,5 @@ I authorize exactly one read-only request as described above.
 This record does not authorize a Messages API call, a dispatch, a retry, or any second request. Dispatch #2 requires its own separate authorization record.
 
 Signed: ____Robert Legorreta________
+
+Status: CONSUMED 2026-11-18 — one GET, HTTP 200; see docs/pilot/6d-credential-check-01.md.
