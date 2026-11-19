@@ -1,7 +1,7 @@
 # Phase 6D — Owner authorization for credential check #1 (read-only, non-generation)
 
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC
-Date (CT): ____________
+Date (CT): ___11/18/26_________
 main at authorization: 9b00853
 Purpose: confirm that the corrected stored credential authenticates and that the pilot model is available to it, before any second dispatch is considered. Follows dispatch #1 (auth_rejected, HTTP 401); see docs/pilot/6d-dispatch-01.md.
 Request: exactly ONE HTTP GET to https://api.anthropic.com/v1/models/claude-haiku-5-5
@@ -17,4 +17,4 @@ Account state at authorization: Default workspace spend limit $5/month; spend th
 I authorize exactly one read-only request as described above.
 This record does not authorize a Messages API call, a dispatch, a retry, or any second request. Dispatch #2 requires its own separate authorization record.
 
-Signed: ____________
+Signed: ____Robert Legorreta________
