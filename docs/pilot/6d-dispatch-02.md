@@ -33,3 +33,5 @@ Authentication succeeded and the request reached the Messages API, which rejecte
 The owner removed the three live gates. A fresh-session check showed only the credential variable. The runner was not rerun.
 
 Authorization #2 is consumed and ended by its own terms. No further dispatch is authorized. A code fix, reviewed and verified in mock mode on Linux and Windows, is required before any new authorization is considered.
+
+Follow-up: [PR #27](https://github.com/Ibmcleaner/Ripley-1/pull/27) implements the schema and diagnostics changes in [ADR-010 revision 11](../decisions/phase-6-adrs.md).

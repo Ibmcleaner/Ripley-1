@@ -1,4 +1,5 @@
 """One trusted provider Worker. SDK imports and credentials stay in its child."""
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
@@ -16,6 +17,7 @@ from .core import (MIN_SDK_TIMEOUT_SECONDS, PARENT_CONTROL_RESERVE_SECONDS,
 from .isolation import redact_patterns
 
 
+PROVIDER_MESSAGE_CAP_CHARS = 500
 GUARD_ATTEMPTS = 0
 MOCK_REQUESTS_SEEN = 0
 _GUARD_INSTALLED = False
@@ -74,6 +76,45 @@ def classify(stage, exc):
     return 'provider_unavailable', 'possibly_sent'
 
 
+def schema_violations(schema) -> list[str]:
+    violations = []
+    allowed = {'type', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'anyOf'}
+
+    def visit(node, path):
+        if not isinstance(node, Mapping):
+            violations.append(f'{path}: expected a schema object')
+            return
+        for key in sorted(node.keys() - allowed):
+            violations.append(f'{path}: unsupported keyword {key}')
+        properties = node.get('properties', {})
+        if node.get('type') == 'object':
+            if node.get('additionalProperties') is not False:
+                violations.append(f'{path}: additionalProperties must be false')
+            if not isinstance(properties, Mapping) or not properties:
+                violations.append(f'{path}: properties must be a non-empty object')
+            required = node.get('required')
+            if (not isinstance(required, list) or not isinstance(properties, Mapping)
+                    or not all(isinstance(k, str) for k in required)
+                    or len(required) != len(properties) or set(required) != set(properties)):
+                violations.append(f'{path}: required must list exactly the property names')
+        if isinstance(properties, Mapping):
+            for key, child in properties.items():
+                visit(child, f'{path}.properties.{key}')
+        if 'items' in node:
+            visit(node['items'], path + '.items')
+        if 'anyOf' in node:
+            if len(node) != 1:
+                violations.append(f'{path}: anyOf must have no siblings')
+            if not isinstance(node['anyOf'], list) or not node['anyOf']:
+                violations.append(f'{path}: anyOf must be a non-empty list')
+            else:
+                for index, child in enumerate(node['anyOf']):
+                    visit(child, f'{path}.anyOf[{index}]')
+
+    visit(schema, '$')
+    return violations
+
+
 def _mock_transport():
     import httpx2
 
@@ -81,7 +122,7 @@ def _mock_transport():
         global MOCK_REQUESTS_SEEN
         MOCK_REQUESTS_SEEN += 1
         scripts = os.environ.get('RIPLEY_MOCK_PROVIDER_SCRIPT', '200:valid').split('+')
-        if not any(s in ('200:valid', '200:malformed', '500:leaky', 'reset_after_write',
+        if not any(s in ('200:valid', '200:malformed', '400:straddle', '500:leaky', 'reset_after_write',
                          'read_timeout') or s.isdigit() for s in scripts):
             scripts.append('200:valid')
         if 'hang_after_send' in scripts:
@@ -91,6 +132,13 @@ def _mock_transport():
         if 'read_timeout' in scripts:
             raise httpx2.ReadTimeout('offline read timeout', request=request)
         headers = {'request-id': 'req_offline_provider'}
+        if any(script.startswith('200:') for script in scripts):
+            body = json.loads(request.content)
+            violations = schema_violations(body['output_config']['format']['schema'])
+            if violations:
+                return httpx2.Response(400, headers=headers, json={'type': 'error', 'error': {
+                    'type': 'invalid_request_error',
+                    'message': 'output_config.format.schema: ' + violations[0]}})
         if '200:malformed' in scripts:
             return httpx2.Response(200, headers=headers, content=b'not a provider response')
         if '200:valid' in scripts:
@@ -102,7 +150,10 @@ def _mock_transport():
                 'stop_reason': 'end_turn', 'stop_sequence': None,
                 'usage': {'input_tokens': 100, 'output_tokens': 60, 'cache_read_input_tokens': 0}})
         message = 'offline fixture'
-        if '500:leaky' in scripts:
+        if '400:straddle' in scripts:
+            status = 400
+            message = 'x' * (PROVIDER_MESSAGE_CAP_CHARS - 10) + os.environ['RIPLEY_ANTHROPIC_API_KEY']
+        elif '500:leaky' in scripts:
             secret = os.environ['RIPLEY_ANTHROPIC_API_KEY']
             message = '\n'.join([secret, *os.environ.get('RIPLEY_TEST_CANARIES', '').split('|'),
                                  'Authorization: Bearer ' + secret])
@@ -179,11 +230,9 @@ class ProviderWorker:
                 options['http_client'] = httpx2.Client(transport=_mock_transport())
             with anthropic.Anthropic(**options) as client:
                 stage = 'before_call'
-                types = {list: {'type': 'array', 'items': {'type': 'object'}},
-                         str: {'type': 'string'}, int: {'type': 'integer'}, bool: {'type': 'boolean'}}
-                schema = {'type': 'object', 'properties': {key: types[value] for key, value in
-                          adapter.expected_output.items()}, 'required': list(adapter.expected_output),
-                          'additionalProperties': False}
+                schema = adapter.output_schema
+                if schema_violations(schema):
+                    raise ValueError('output_schema violates provider structured-output rules')
                 content = template.decode('utf-8') + '\n---\n' + canonical_json(snapshot['inputs']).decode('utf-8')
                 if 'leak_stderr' in scripts:
                     sys.stderr.write('\n'.join(['Traceback (synthetic fixture):', self._secret,
@@ -214,8 +263,15 @@ class ProviderWorker:
             dispatch['provider_request_id'] = dispatch['provider_request_id'] or getattr(exc, 'request_id', None)
             if observation == 'not_sent':
                 dispatch['sent_at'] = None
-            return error(kind, 'provider request failed',
-                         f'{type(exc).__name__} status={getattr(exc, "status_code", None)}')
+            detail = f'{type(exc).__name__} status={getattr(exc, "status_code", None)}'
+            body = getattr(exc, 'body', None)
+            if isinstance(body, Mapping) and isinstance(body.get('error'), Mapping):
+                for field, cap in [('type', 100), ('message', PROVIDER_MESSAGE_CAP_CHARS)]:
+                    value = body['error'].get(field)
+                    if isinstance(value, str):
+                        safe = sanitize(value, self._secret, self._canaries)[:cap]
+                        detail += f' provider_{field}={safe}'
+            return error(kind, 'provider request failed', detail)
 
 
 class AnthropicWorker(ProviderWorker):
