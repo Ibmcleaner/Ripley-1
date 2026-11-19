@@ -16,12 +16,13 @@ empty practice arrays. Its only use in this command is the local mock response.
 In PowerShell, start at the repository root with no pre-existing Ripley variables.
 Install the pinned SDK before the offline run. Use a new, dedicated mock ledger.
 Keep the same file for a repeat invocation so duplicate and budget accounting remain visible.
+PowerShell execution policy can block activation scripts. Call the virtual environment’s
+interpreter directly for SDK installation, the mock dispatch, and ledger inspection.
 
 ```powershell
 if (Test-Path 'Env:RIPLEY_*') { throw 'Use a clean PowerShell session for the mock dry-run.' }
-python -m venv .venv6
-.\.venv6\Scripts\Activate.ps1
-python -m pip install -r requirements-providers.txt
+py -m venv .venv6
+.\.venv6\Scripts\python.exe -m pip install -r requirements-providers.txt
 $packet = (Get-Item -LiteralPath .\fixtures\nfl-availability\TB-at-CHI-2026-11-08.json -ErrorAction Stop).FullName
 $expected = [IO.Path]::ChangeExtension($packet, 'expected.json')
 if (!(Test-Path -LiteralPath $expected -PathType Leaf)) { throw 'Missing expected output.' }
@@ -41,7 +42,7 @@ importing the SDK.
 ## Run once
 
 ```powershell
-python scripts/pilot_dispatch.py --packet "$packet" --ledger "$ledger"
+.\.venv6\Scripts\python.exe scripts/pilot_dispatch.py --packet "$packet" --ledger "$ledger"
 ```
 
 Compare the printed SHA-256 and counts with the verified provenance. On a fresh
@@ -66,7 +67,7 @@ uri = Path(sys.argv[1]).resolve().as_uri() + "?mode=ro"
 with closing(sqlite3.connect(uri, uri=True)) as db:
     for kind, count in db.execute("SELECT kind, COUNT(*) FROM records GROUP BY kind ORDER BY kind"):
         print(kind, count)
-'@ | python - "$ledger"
+'@ | .\.venv6\Scripts\python.exe - "$ledger"
 ```
 
 The first run should include one task, execution attempt, execution request, result,

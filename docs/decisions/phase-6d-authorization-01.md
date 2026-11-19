@@ -19,3 +19,5 @@ This record does not authorize a second dispatch, any other packet, any other pr
 Any outcome other than remote_outcome: completed ends the authorization; a further dispatch requires a new record.
 
 Signed: _Robert legorreta___________
+
+Status: CONSUMED 2026-11-18 — dispatch #1 ended `failed_after_send` / `auth_rejected` (HTTP 401); see docs/pilot/6d-dispatch-01.md.

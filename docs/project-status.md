@@ -15,6 +15,7 @@ Scope: approved Phase 1 documentation handoff for Ibmcleaner/Ripley-1.
 | Phase 6B + 6C | ACCEPTED (mock transport only; PR #12, PR #15) |
 | Phase 6D-prep (packet + runner, mock-only) | ACCEPTED (mock-only; PR #17) |
 | Phase 6D live pilot | NOT AUTHORIZED |
+| Phase 6D dispatch #1 | auth_rejected (failed_after_send); cause: abbreviated credential stored; remediated; no further dispatch authorized |
 
 ## Maturity vocabulary
 
