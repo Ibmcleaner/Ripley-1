@@ -25,3 +25,5 @@ Any outcome other than remote_outcome: completed ends the authorization; a furth
  
 Signed: __Robert Legorreta__________  
 
+
+Status: CONSUMED 2026-11-18 — dispatch #2 ended `failed_after_send` / `invalid_request` (HTTP 400); see docs/pilot/6d-dispatch-02.md.
