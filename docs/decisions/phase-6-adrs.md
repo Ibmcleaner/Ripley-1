@@ -6,7 +6,7 @@ These records continue [ADR-001 through ADR-006](phase-1-adrs.md), [ADR-007](pha
 
 ## ADR-010 — External provider Worker and paid-dispatch governance
 
-Status: **ACCEPTED — revision 10 (Decision 14 evidence timestamps amended during 6D-prep; revision 9 amended during 6B) — drafted by Claude from the Phase 6 whiteboard; revised for thirteen Copilot corrections and three rounds of ChatGPT pre-commit findings; Decision 1 ruled by the owner 2026-11-17 after a read-only Models API confirmation; merged (PR #11 a7cbfd2; amended PR #13 200f3fc).**
+Status: **ACCEPTED — revision 11 (Decisions 4 and 13 amended after 6D dispatch #2; Decision 14 evidence timestamps amended during 6D-prep; revision 9 amended during 6B) — drafted by Claude from the Phase 6 whiteboard; revised for thirteen Copilot corrections and three rounds of ChatGPT pre-commit findings; Decision 1 ruled by the owner 2026-11-17 after a read-only Models API confirmation; merged (PR #11 a7cbfd2; amended PR #13 200f3fc).**
 
 Implementation status: **6B and 6C accepted (PR #12, PR #15). 6D NOT AUTHORIZED — requires a separate owner record before any live dispatch. 6E not started. No live API calls are authorized by this record.**
 
@@ -87,7 +87,7 @@ Local tasks carry `dispatch_policy: None`.
 
 ### Decision 5 — Provider Worker contract and SDK configuration
 
-`ProviderWorker` (base) and `AnthropicWorker` live in `ripley/providers.py`, imported only by `worker_host.py`. `produce()` builds the request from the frozen packet, renders the prompt template, checks the live/mock gate (Decision 11), resolves the credential, constructs the SDK client **once** with `max_retries = 0`, the SDK timeout from Decision 6, and `max_output_tokens` from the spec; calls the SDK **once**; returns the structured output. Structured output is requested through the provider's native JSON-schema mechanism derived from the adapter's `expected_output`. No retries, no fallbacks, no second model.
+`ProviderWorker` (base) and `AnthropicWorker` live in `ripley/providers.py`, imported only by `worker_host.py`. `produce()` builds the request from the frozen packet, renders the prompt template, checks the live/mock gate (Decision 11), resolves the credential, constructs the SDK client **once** with `max_retries = 0`, the SDK timeout from Decision 6, and `max_output_tokens` from the spec; calls the SDK **once**; returns the structured output. Structured output is requested through the provider's native JSON-schema mechanism using the adapter-owned `output_schema`: a complete JSON Schema of the adapter's Worker output in which every object declares its `properties`, lists all of them as `required`, and sets `additionalProperties: false`, using only schema keywords the provider documents as supported. An adapter without `output_schema` cannot be dispatched (`invalid_request`, `not_sent`). The schema constrains shape only; independent validation still decides correctness. (Dispatch #2 showed that a coarse schema derived from the `expected_output` type map is rejected by the live API and could in any case only yield empty objects.) No retries, no fallbacks, no second model.
 
 ### Decision 6 — Deadline and SDK timeout contract
 
@@ -168,7 +168,7 @@ Exactly nine Ripley classes in `error.type` / `provider_error`:
 
 `live_gate_closed` · `auth_unavailable` · `insufficient_time` · `auth_rejected` · `rate_limited` · `invalid_request` · `provider_unavailable` · `provider_timeout` · `malformed_provider_response`
 
-(The first three are always `not_sent`; the rest follow Decision 7.) A model refusal or off-schema answer is an `ok` response that fails validation. Provider-specific exception names and HTTP statuses are kept under `error.detail`, sanitized, for diagnostics only.
+(The first three are always `not_sent`; the rest follow Decision 7.) A model refusal or off-schema answer is an `ok` response that fails validation. Provider-specific exception names, HTTP statuses, and the provider's own error type and message are kept under `error.detail` for diagnostics only. The provider message is sanitized first and length-capped second, so truncation can never expose part of a secret.
 
 ### Decision 14 — First NFL task: frozen player-availability evidence packet
 
