@@ -24,7 +24,7 @@ Scope: approved Phase 1 documentation handoff for Ibmcleaner/Ripley-1.
 | Sprint 6 — offline dispatch identity preflight | ACCEPTED (PR #31, merged fa44976). Offline only; Linux 185/0 skips, Windows 185/4 skips, preflight 12 of 12 matched. Passing it does not authorize dispatch or establish provider acceptance |
 | Sprint 7 — offline capture receipt (ADR-011) | ACCEPTED (PR #34, merged 86012c8). Offline, local-file intake only. Linux 202/0 skips, Windows 202/4 expected skips, focused capture tests 17/17. No network acquisition, no provider activity |
 | Sprint 8 — advisory CI on pull requests | ACCEPTED (PR #36, merged ddb23be). One advisory Linux check: full suite, pinned SDK, zero skips, disposable copy. Independent reproduction 202 run / 0 skips; hosted runs 1 and 2 green. Not a merge gate; no secrets; no provider activity |
-| Sprint 9 — capture and CI runner corrections | IMPLEMENTED, pending review (PR #38). Sequential capture; no reservation; detecting rehash/sync tests; exact loopback rule and complete verdict self-check. Advisory CI; no provider activity |
+| Sprint 9 — capture and CI runner corrections | ACCEPTED (PR #38, merged 697680b). Seven known items from Sprints 7 and 8 corrected; no new capability. Linux 206/0 skips, Windows 206/4 expected skips, focused capture tests 21/21; seven mutation checks detected. Capture is sequential-only. Advisory CI; no provider activity |
 
 ## Maturity vocabulary
 
