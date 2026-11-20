@@ -16,7 +16,7 @@ Cyrus Forge Systems builds durable engines meant to stay useful for many years, 
 - Build what we need. Earn complexity through evidence.
 - This repository is also the owner's engineering portfolio. The real process is documented as it happens, including failures and limitations.
 
-Priority order (owner, 2026-11-19): security and core integrity; health and self-preservation; reliability and service continuity; failure intelligence and safe recovery; evolution and modernization; performance and efficiency; customer extensibility.
+Priority order (Doctrine v1, section 1): Security and Core Integrity; Health and Customer Protection; Reliability and Service Continuity; Failure Intelligence and Safe Recovery; Evolution and Modernization; Performance and Efficiency; Customer Extensibility.
 
 Evolution cannot violate security. Performance cannot violate correctness. Availability cannot justify corrupted evidence. Autonomy cannot overrule governance.
 
@@ -99,7 +99,8 @@ Standing rules:
 
 Completed:
 - Phases 1 to 5 merged.
-- Phase 6A, 6B, 6C and 6D-prep accepted, mock transport only.
+- Phase 6A (ADR-010) complete, PR #11.
+- Phase 6B, 6C and 6D-prep accepted, mock transport only.
 - Sprint 5 (output schema and provider error diagnostics) accepted, PR #27.
 - FI-001 offline root-cause analysis merged, PR #29. Historical cause of the HTTP 400 is UNCONFIRMED.
 - Cyrus Engineering Doctrine v1 adopted, PR #30.
@@ -140,7 +141,7 @@ Owner decision needed:
 | 2026-11-17 | Phase 6B and 6C, mocked provider worker and safety tests | PR #12, PR #15 |
 | 2026-11-18 | Phase 6D-prep, frozen Bears packet and owner pilot runner | PR #17 |
 | 2026-11-18 | Live dispatch #1 auth_rejected. Credential check HTTP 200. | docs/pilot |
-| 2026-11-19 | Live dispatch #2 HTTP 400 | docs/pilot/6d-dispatch-02.md |
+| 2026-11-18 | Live dispatch #2 HTTP 400 (sent 11:48 PM Central; 2026-11-19 UTC) | docs/pilot/6d-dispatch-02.md |
 | 2026-11-19 | Sprint 5 schema and diagnostics fix | PR #27 |
 | 2026-11-19 | FI-001 record | PR #29 |
 | 2026-11-19 | Doctrine v1 adopted | PR #30 |
