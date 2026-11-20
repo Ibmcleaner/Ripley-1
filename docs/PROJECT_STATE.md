@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-20, against main ddb23be (PR #36).
+Last updated: 2026-11-20, against main 697680b (PR #38).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -113,16 +113,20 @@ Completed:
 - Sprint 7 (offline capture receipt, ADR-011) accepted, PR #34. Tests: Linux 202 run, 0 skips. Windows 202 run, 4 expected skips. Focused capture tests 17 of 17.
 - Sprint 7 closeout, PR #35.
 - Sprint 8 (advisory CI on pull requests) accepted, PR #36. Independent reproduction: 202 run, 0 skips. Hosted runs 1 and 2 green. Sprint 8 is closed when its closeout PR is reviewed and merged by the owner.
+- Sprint 8 closeout, PR #37.
+- Sprint 9 (capture and CI runner corrections) accepted, PR #38. Tests: Linux 206 run, 0 skips. Windows 206 run, 4 expected skips. Focused capture tests 21 of 21. Seven mutation checks detected. Sprint 9 is closed when its closeout PR is reviewed and merged by the owner.
 
 Advisory CI:
 - One advisory Linux check runs on pull requests targeting main: pinned SDK verified, full suite in a disposable copy, red on any failure, error, skip, unexpected success or zero tests. It uses a read-only token and no secrets. It is not a merge gate; no branch protection is configured. It is not a network sandbox and does not run Windows.
+- The connection guard accepts only the exact name localhost or a numeric loopback address, and covers the main test process only.
 
 Capture capability (ADR-011):
 - Ripley One now has a deterministic offline local-file capture capability. It can: accept a local file from an approved directory; preserve the exact bytes in a content-addressed store outside the repository; write a capture receipt to the ledger; record Ripley's UTC captured_at separately from declared source times; verify stored content as MATCHED, MISMATCHED or UNAVAILABLE.
 - It does not: acquire anything over a network; use or contain agents; select sources on its own; parse content; link a Snapshot to a capture; involve any provider; do predictive modeling.
+- Capture is sequential-only; concurrent capture is unsupported, untested and unclaimed. Byte-string source paths are refused before any read or store write. An object published at its final path is not removed by a later failure of that capture. Reuse of an existing object repeats the applicable durability sync before a receipt is written. There is no reservation or lock.
 
 Reviewed code baseline:
-The reviewed code baseline remains main 86012c8924d24a49e4448904dac7dc53e4df3d38 (merge of PR #34). Sprint 8 changed no governed path (ripley/, tests/, scripts/, fixtures/, the SDK pin, .gitattributes). The reviewed CI tooling is main ddb23be065b8a3a91bf6bd14ad4ca5e5d6ab396b (merge of PR #36), whose tree is identical to commit 1b14d7d, which Claude reviewed. Neither statement authorizes a dispatch.
+The reviewed code baseline is main 697680bb2c69d0f7fa6bbb1557912ecf694c24cc (merge of PR #38), whose tree is identical to commit 3893fa5, which Claude reviewed. It supersedes 86012c8. The reviewed CI tooling is the same commit: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. Neither statement authorizes a dispatch.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. A provider support case is open.
@@ -141,17 +145,18 @@ Owner direction of 2026-11-20:
 Known small items:
 - Test P6-11 briefly rewrites the real prompt file. To be changed to use a temporary copy in a sprint allowed to touch existing tests.
 - Run scripts/pilot_preflight.py with python -I, and do not run it while the test suite is running.
-- Capture: bytes source path raises an unclassified error; stale reservation needs manual removal; two behaviors lack a detecting test. See docs/capture.md, "Known limitations".
 - docs/project-status.md still carries Phase 1-era rows such as "Phase 2 implementation: NOT STARTED". Deferred documentation cleanup, not authorized here.
-- CI runner: loopback rule is prefix-based; self-check does not exercise unexpected successes; credential log wording. See docs/ci.md, "Known limitations".
+- Capture is sequential-only, and an abruptly terminated capture can leave a temporary file. See docs/capture.md, "Known limitations".
+- The CI connection guard covers the main test process only. See docs/ci.md, "Known limitations".
+- Exact payloads sent through long chat messages have been reformatted or truncated in transit. Prefer a hash-verified file through the approved shared Drive folder. Process recommendation only.
 
 Owner decision needed:
-- Sprint 9 goal. Not yet set and not chosen by this record. Candidates carried forward: capture and CI runner technical-debt corrections; Snapshot-to-capture linking; a read-only ledger status report; timing of the source-reader ADR.
+- Sprint 10 goal. Not yet set and not chosen by this record. Candidates carried forward: Snapshot-to-capture linking (ranked next in Sprint 9 planning); a read-only ledger status report; timing of the source-reader ADR.
 - Whether capture should ever acquire over a network. Blocked pending an owner decision on sources and a rights classification.
 - Whether and when the advisory check becomes a required check. Not decided.
 
 Next round-table topics:
-- Sprint 9 selection.
+- Sprint 10 selection.
 - Provider support reply on FI-001, when it arrives.
 - Timing of the source-reader ADR.
 
@@ -176,6 +181,7 @@ Next round-table topics:
 | 2026-11-20 | Handoff file and model role cards | PR #33 |
 | 2026-11-20 | Sprint 7 offline capture receipt, ADR-011 | PR #34, docs/capture.md |
 | 2026-11-20 | Sprint 8 advisory CI on pull requests | PR #36, docs/ci.md |
+| 2026-11-20 | Sprint 9 capture and CI runner corrections | PR #38, docs/capture.md, docs/ci.md |
 
 ## 8. Future add-ons (ideas only)
 
@@ -210,7 +216,6 @@ Deferred from earlier phases:
 Infrastructure candidates raised for Sprint 7 and later:
 - Linking Snapshots to the captures they used
 - Network acquisition for capture (needs its own decision and a rights classification)
-- Capture and CI runner technical-debt corrections
 - A read-only status report from the ledger
 - Separating prompt and adapter from the provider worker
 - Dispatch-time request evidence (needs an ADR-010 revision and the freeze lifted)

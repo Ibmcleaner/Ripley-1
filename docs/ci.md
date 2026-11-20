@@ -76,15 +76,15 @@ python -m unittest discover -s tests
 
 ## Known limitations
 
-The first three paragraphs record Sprint 8 limitations. Sprint 9 replaces the prefix rule, adds the unexpected-success self-check and changes the success log to say no variable "has a value." The main-process-only scope continues.
+Remaining limitation:
 
-**Loopback rule.** The connection guard treats any host name beginning with "localhost" or "127." as loopback. A name such as `localhost.example.com` is therefore not refused. Ordinary outside addresses, including a provider address, are refused. This was an error in the runner as designed by Claude. A future correction candidate is to accept only the exact name localhost and addresses that parse as loopback IPs.
+**Network-guard scope.** The runner's connection guard covers the main test process only. It is not a network sandbox for child processes started by tests. This limit is part of the documented CI semantics.
 
-**Self-check coverage.** The pass/fail rule rejects unexpected successes. The `--self-check` does not exercise that specific case. A future correction candidate is to add an unexpected-success self-check.
+Corrected in Sprint 9 (PR #38), recorded for history:
 
-**Credential check wording.** The workflow refuses the listed variables when they contain a non-empty value. An empty-but-present variable passes. The current log line says no variable "is set." An empty value carries no provider/live authority. A future wording candidate is no variable "has a value."
-
-**Network-guard scope.** The runner's connection guard covers the main test process only. It is not a complete network sandbox for arbitrary child processes. This limit remains part of the documented CI semantics.
+- Loopback rule. The guard previously treated any host beginning with "localhost" or "127." as loopback. This was an error in the runner as designed by Claude. It now accepts only the exact name localhost or a numeric loopback IP address.
+- Self-check coverage. The self-check previously did not exercise an unexpected success. It now does.
+- Credential check wording. The success log previously said no variable "is set". It now says no variable "has a value". The check itself is unchanged: it refuses the listed variables when they hold a non-empty value.
 
 ## Sprint 8 retrospective
 
@@ -118,3 +118,41 @@ The first three paragraphs record Sprint 8 limitations. Sprint 9 replaces the pr
 **One improvement to carry forward**
 
 Implementation-release messages include, or directly contain, every exact payload the implementer needs in a form actually available in the implementation chat.
+
+## Sprint 9 runner corrections
+
+- Changed in PR #38: .github/scripts/ci_tests.py for the loopback rule and unexpected-success self-check, plus one success-log line in .github/workflows/tests.yml.
+- No trigger, permission, runner, Python version or action reference changed.
+
+Authoritative published runner SHA-256:
+
+`95b5dfd04e30938e94b6835b52aecfdd55a658c4018a4c74972f8cf207675643`
+
+Published workflow SHA-256:
+
+`68b451b8994aaf2e67cf261d95aca71d880a79ea4c6dcda41284cc5d4369c239`
+
+The workflow hash matched its assigned reference.
+
+Hash reconciliation:
+
+The originally assigned runner reference was:
+
+`7f26e2ddb71d13fb9e90906f569fc6e601defa67d9548e7ead828eca23e4e4b7`
+
+The published runner differed from that assigned text in layout only:
+
+- reflowed tables
+- wrapped calls
+- added blank lines
+- one trailing comma
+
+Claude confirmed the assigned and published versions parse to identical syntax trees and independently reviewed the published bytes.
+
+Classification:
+
+TRANSMISSION DIFFERENCE, NONBLOCKING
+
+The advisory check remains advisory.
+
+Full Sprint 9 evidence and retrospective are recorded in docs/capture.md.

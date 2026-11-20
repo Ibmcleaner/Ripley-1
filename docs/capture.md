@@ -76,13 +76,19 @@ Inspect `CaptureError.reason` for the failed step.
 
 ## Known limitations
 
-The following three paragraphs preserve the Sprint 7 closeout findings. Sprint 9 corrects the bytes-path refusal, removes reservations and adds detecting tests for temporary-file rehash and the sync protocol. The sequential-only boundary above remains in force.
+Remaining limitations:
 
-Bytes source path. A source path supplied as a byte string raises an unclassified TypeError after the content has been stored. No receipt is created. Correction candidate for the next authorized change to ripley/capture.py.
+**Sequential capture.** Capture is supported one at a time. Concurrent capture publication is unsupported, untested and unclaimed.
 
-Stale reservation. As described above. The behavior fails safe. Automatic recovery is not implemented and is not planned by this record.
+**Interrupted capture.** A capture that is terminated abruptly can leave a temporary file in the destination directory. It is not a stored object and is not evidence of a capture. The operator may delete it. No automatic cleanup is provided.
 
-Test coverage. Two implemented behaviors are not independently detected by the current tests: the re-hash of the temporary file before publication, and disk sync. Removing either leaves all 17 tests passing.
+**Directory sync on Windows.** Directory sync is performed on POSIX only. Windows has no portable equivalent in the standard library.
+
+Corrected in Sprint 9 (PR #38), recorded for history:
+
+- Bytes source path. A byte-string source path previously raised an unclassified TypeError after content was stored. It is now refused as source_unapproved before any read or store write.
+- Reservation. The per-digest reservation directory, and the stale-reservation failure it could cause, were removed.
+- Test coverage. The temporary-file re-hash and the sync protocol previously had no detecting test. CAP-20 and CAP-21 now detect their removal.
 
 ## Sprint 7 retrospective
 
@@ -103,3 +109,44 @@ Test coverage. Two implemented behaviors are not independently detected by the c
 What should remain: one measurable sprint outcome; independent implementation and review; hard-stop conditions; review of the exact published SHA; owner Windows verification for file-system work; the frozen provider boundary.
 
 One improvement to carry forward: assignments that change the repository carry the owner's direct authorization and the exact file scope in a form the implementation environment can check before work begins.
+
+## Sprint 9 acceptance evidence
+
+| Evidence type | Recorded evidence |
+|---|---|
+| Publication | Implementation PR #38. Commit 1: `d4c9bce193c40ca0547e06a11b04eafc31b65674`. Commit 2 / reviewed head: `3893fa54e11ace1b7250950533c038a4ffda0e98`. Merged main: `697680bb2c69d0f7fa6bbb1557912ecf694c24cc`. The merged tree is identical to the reviewed head. |
+| Independent review | Claude verdict: APPROVED WITH NONBLOCKING NOTES FOR OWNER WINDOWS GATE. |
+| Independent Linux run | Claude independently ran the published implementation using Python 3.13 and anthropic 2.9.0 on tested commit `531b0acbed6aa4a5e87d130e575d8ef308b8a12c`. Disposable-copy focused capture result: 21 run, 21 passed. Full suite: 206 run, 206 passed, 0 failures, 0 errors, 0 skipped. Self-check: PASSED. |
+| Independent mutation checks | Claude applied seven deliberate defects individually to the published capture implementation. Each was detected: temporary re-hash removed — CAP-20; file sync removed — CAP-20 and CAP-21; post-publication directory sync removed — CAP-21; published object deleted after sync failure — CAP-21; reuse directory sync removed — CAP-21; bytes-path refusal removed — CAP-18; reservation reintroduced — CAP-19. |
+| Existing test preservation | The first 229 lines of tests/test_capture.py, through CAP-17, are byte-identical to the pre-Sprint file. |
+| Frozen identities | Packet, prompt and output-schema hashes remained unchanged. |
+| Owner Windows run — owner-reported | As reported by Robert: focused capture, 21 run, 21 passed. Full suite: 206 run, 4 expected Phase 5 skips, 0 failures, 0 errors. |
+| Hosted checks — implementer-reported | As reported by ChatGPT: Run 44831869741 on Commit 1 was green, 202 run, 0 skipped. Run 44832602272 on Commit 2 was green, 206 run, 0 skipped. |
+| Hosted check identity — independently confirmed | Claude independently confirmed from GitHub that each tested merge commit has main and the corresponding Sprint commit as parents. Claude did not independently observe either run page. |
+| ADR-011 | UNCHANGED. |
+
+## Sprint 9 retrospective
+
+**What worked**
+
+- The correction sprint stayed bounded to seven known items.
+- Claude and ChatGPT independently converged on removing the reservation.
+- Four new tests detect durability and error-handling regressions that were previously uncovered.
+- All seven deliberate mutations were detected.
+- Linux and Windows verification both passed.
+- The advisory check evaluated both commits.
+
+**What caused rework or friction**
+
+- The exact CI runner payload was reformatted in transit.
+- The published runner hash therefore did not match Claude's originally assigned reference hash.
+- Claude reconciled the published runner as a layout-only, behaviorally equivalent transmission difference.
+- Long implementation payloads sent through chat repeatedly risked truncation or missing content between chats.
+
+**One improvement to carry forward**
+
+For exact or verbatim implementation payloads, prefer a hash-verified file passed through the already-approved shared Drive folder over a long chat message.
+
+This is a process recommendation only.
+
+It does not change the shared-Drive rules.
