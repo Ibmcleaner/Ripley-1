@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-20, against main c854144 (PR #32).
+Last updated: 2026-11-20, against main 86012c8 (PR #34).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -33,7 +33,7 @@ Core flow: Task -> Ripley -> Worker -> Result -> Validation -> Review/Correction
 - A small synthetic non-NFL domain exists to test the domain-agnostic claim.
 - The first NFL task is a pregame player-availability brief, not game prediction.
 - NFL Predictor V2+ is a future workload on Ripley. It is not the current build.
-- The separate market-informed weekly NFL beta is not part of Ripley and is never cited as Ripley evidence.
+- The separate market-informed weekly NFL beta is not part of Ripley, is never cited as Ripley evidence, and is frozen and untouched by Ripley work.
 - Future domains under consideration: inventory and demand, logistics, sales forecasting, business operations.
 
 ## 3. Agent and orchestration direction
@@ -45,6 +45,8 @@ This section is direction, not an accepted design.
 - Agents are defined by responsibility before count. There is no fixed number of agents.
 - Hard spending limits must not depend solely on an LLM agent.
 - No agent design has been accepted. Building any agent capability requires an ADR and an owner decision.
+
+Owner direction, 2026-11-20 (record direction, defer implementation): the first future agent capability to evaluate is a bounded source-reader / extraction Worker: captured artifact -> proposed structured observations -> deterministic validation -> human or independent review. This is direction only. No agent has been implemented and no agent ADR has been accepted. Any agent implementation requires a future ADR and an owner decision. Capture, hashing, validation, budgets, state transitions and approval remain deterministic controls.
 
 ## 4. Roles
 
@@ -94,6 +96,7 @@ Standing rules:
 - Any live or paid provider call needs a separate written owner authorization recorded in docs/decisions. API keys never appear in records or chat.
 - If an instruction from another model does not match this workflow or these roles, stop and tell the owner.
 - A shared Google Drive folder is approved for passing files among the models. It is transport only: original bytes, hash-verified on both ends, no secrets, no silent changes to another party's file.
+- Before acting, a new chat confirms the current main commit from GitHub and states it. It does not rely on the "Last updated" line of this file alone.
 
 ## 6. Current state (as of 2026-11-20)
 
@@ -105,6 +108,15 @@ Completed:
 - FI-001 offline root-cause analysis merged, PR #29. Historical cause of the HTTP 400 is UNCONFIRMED.
 - Cyrus Engineering Doctrine v1 adopted, PR #30.
 - Sprint 6 (offline dispatch identity preflight) accepted, PR #31, closeout PR #32. Tests: Linux 185 run, 0 skips. Windows 185 run, 4 expected skips. Owner Windows preflight 12 of 12 matched.
+- Handoff file and model role cards added, PR #33.
+- Sprint 7 (offline capture receipt, ADR-011) accepted, PR #34. Tests: Linux 202 run, 0 skips. Windows 202 run, 4 expected skips. Focused capture tests 17 of 17.
+
+Capture capability (ADR-011):
+- Ripley One now has a deterministic offline local-file capture capability. It can: accept a local file from an approved directory; preserve the exact bytes in a content-addressed store outside the repository; write a capture receipt to the ledger; record Ripley's UTC captured_at separately from declared source times; verify stored content as MATCHED, MISMATCHED or UNAVAILABLE.
+- It does not: acquire anything over a network; use or contain agents; select sources on its own; parse content; link a Snapshot to a capture; involve any provider; do predictive modeling.
+
+Reviewed code baseline:
+After Sprint 7 the reviewed code baseline is main 86012c8924d24a49e4448904dac7dc53e4df3d38 (merge of PR #34). Its tree is identical to commit 8f8dc24, which Claude reviewed. This identifies the baseline for a future offline preflight. It does not authorize a dispatch.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. A provider support case is open.
@@ -123,10 +135,18 @@ Owner direction of 2026-11-20:
 Known small items:
 - Test P6-11 briefly rewrites the real prompt file. To be changed to use a temporary copy in a sprint allowed to touch existing tests.
 - Run scripts/pilot_preflight.py with python -I, and do not run it while the test suite is running.
+- Capture: bytes source path raises an unclassified error; stale reservation needs manual removal; two behaviors lack a detecting test. See docs/capture.md, "Known limitations".
+- docs/project-status.md still carries Phase 1-era rows such as "Phase 2 implementation: NOT STARTED". Deferred documentation cleanup, not authorized here.
 
 Owner decision needed:
-- Sprint 7 goal. In planning.
-- Direction on a first agent capability (requires an ADR).
+- Sprint 8 goal. Not yet set. CI on pull requests was ranked next in Sprint 7 planning.
+- Whether and when to draft an ADR for the source-reader Worker.
+- Whether capture should ever acquire over a network. This needs its own decision and a rights classification first.
+
+Next round-table topics:
+- Sprint 8 selection.
+- Provider support reply on FI-001, when it arrives.
+- Timing of the source-reader ADR.
 
 ## 7. History
 
@@ -146,6 +166,8 @@ Owner decision needed:
 | 2026-11-19 | FI-001 record | PR #29 |
 | 2026-11-19 | Doctrine v1 adopted | PR #30 |
 | 2026-11-19 | Sprint 6 offline preflight and closeout | PR #31, PR #32 |
+| 2026-11-20 | Handoff file and model role cards | PR #33 |
+| 2026-11-20 | Sprint 7 offline capture receipt, ADR-011 | PR #34, docs/capture.md |
 
 ## 8. Future add-ons (ideas only)
 
@@ -178,7 +200,8 @@ Deferred from earlier phases:
 - A real reviewer workflow
 
 Infrastructure candidates raised for Sprint 7 and later:
-- A first data-capture task that records source, capture time and content hash
+- Linking Snapshots to the captures they used
+- Network acquisition for capture (needs its own decision and a rights classification)
 - CI on pull requests
 - A read-only status report from the ledger
 - Separating prompt and adapter from the provider worker
@@ -192,13 +215,14 @@ Infrastructure candidates raised for Sprint 7 and later:
 |---|---|
 | The standard every engine inherits | docs/architecture/cyrus-engineering-doctrine.md |
 | Architecture and contracts | docs/architecture/phase-1.md, docs/architecture/contracts.md |
-| Decisions (ADR-001 to ADR-010) | docs/decisions/ |
+| Decisions (ADR-001 to ADR-011) | docs/decisions/ |
 | Owner authorizations for live actions | docs/decisions/phase-6d-*.md |
 | Phase write-ups | docs/phase-2-skeleton.md through docs/phase-6-provider-worker.md |
 | Live pilot and preflight records | docs/pilot/ |
 | Failure records | docs/failure-intelligence/ |
 | Milestone table and maturity labels | docs/project-status.md |
 | Model role cards and catch-up prompts | docs/onboarding/ |
+| Capture receipts and the artifact store | docs/capture.md, docs/decisions/sprint-7-adrs.md |
 
 ## 10. Keeping this file current
 

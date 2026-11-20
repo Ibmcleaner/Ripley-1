@@ -28,6 +28,8 @@ Source location, declared retrieval time and declared effective time are recorde
 
 The object is stored at `<store_dir>/sha256/<first two hex digits>/<64 hex digits>`. Capture re-hashes an existing object before reuse. For a new object it reserves the digest with a temporary sibling lock directory, writes and flushes a same-directory temporary file, calls fsync, checks the temporary file's digest and size, and publishes by atomic replacement. On POSIX it also syncs the affected directories. A competing writer encountering the reservation fails without retry. An abrupt process termination can leave a reservation; this version performs no automatic stale-lock recovery.
 
+If a capture fails with `artifact_write_failed` and a directory named `<64 hex digits>.lock` exists where that object would be stored, an earlier capture of the same bytes was interrupted. After confirming that no capture is running, the operator removes that empty `.lock` directory by hand and repeats the capture. A leftover temporary file from the interrupted write may also be present in the same directory; it is not a stored object and may be deleted. Nothing else in the store should be removed.
+
 After publication, each successful capture appends a distinct record of kind `capture`, including repeat observations of the same bytes. If the ledger append fails, the object stays available for reuse. Its presence alone is not evidence of a capture.
 
 ## Verify
@@ -56,3 +58,42 @@ Inspect `CaptureError.reason` for the failed step.
 | `store_corrupt` | An existing object's identity differs from the expected bytes. |
 | `artifact_write_failed` | Object reservation, persistence or verification failed. |
 | `ledger_write_failed` | The ledger append raised after the object was stored. The original exception is chained. |
+
+## Sprint 7 acceptance evidence
+
+| Evidence | Result |
+|---|---|
+| Publication | Implementation PR #34; reviewed published head 8f8dc24314acac2ef854931e3a517d9601527e44; merged to main as 86012c8924d24a49e4448904dac7dc53e4df3d38. The merged tree is identical to the reviewed commit. |
+| Independent review | Independent review (Claude): APPROVED WITH NONBLOCKING NOTES FOR OWNER MERGE. |
+| Independent Linux run | Linux, independent, Python 3.13 with anthropic 2.9.0: 202 run, 202 passed, 0 failed, 0 errors, 0 skipped. Focused capture tests: 17 run, 17 passed. |
+| Independent receipt reproduction | Independent receipt reproduction (Claude): receipt read directly from the SQLite ledger; stored object's SHA-256 computed with a separate tool matched the receipt and the source; MATCHED after reopening the ledger; MISMATCHED after one stored byte was altered; UNAVAILABLE after the object was deleted. |
+| Owner Windows run | Windows, owner-run, as reported by the owner: 202 run, 4 expected Phase 5 skips, 0 failures, 0 errors. Line-ending warnings appeared during the run; they were warnings and did not change the result. |
+| Implementer Linux run | Implementer environment note: ChatGPT's Linux run showed 38 skips because the optional pinned SDK was not installed there. This was an environment limitation, not a defect. |
+
+## Known limitations
+
+Bytes source path. A source path supplied as a byte string raises an unclassified TypeError after the content has been stored. No receipt is created. Correction candidate for the next authorized change to ripley/capture.py.
+
+Stale reservation. As described above. The behavior fails safe. Automatic recovery is not implemented and is not planned by this record.
+
+Test coverage. Two implemented behaviors are not independently detected by the current tests: the re-hash of the temporary file before publication, and disk sync. Removing either leaves all 17 tests passing.
+
+## Sprint 7 retrospective
+
+**What worked**
+
+- Independent planning converged on a smaller offline capture primitive than the starting proposal.
+- File scope was bounded before implementation.
+- The provider path stayed isolated.
+- The receipt and digest were independently reproduced.
+- Linux and Windows runs completed before merge.
+
+**What caused rework or friction**
+
+- The first frozen-file wording contradicted the authorization for two new files and was corrected before implementation.
+- The implementer's Linux environment lacked the pinned optional SDK, producing environment-driven skips.
+- As reported by the owner, authorization had to be restated directly before implementation because the implementation environment did not accept relayed authorization.
+
+What should remain: one measurable sprint outcome; independent implementation and review; hard-stop conditions; review of the exact published SHA; owner Windows verification for file-system work; the frozen provider boundary.
+
+One improvement to carry forward: assignments that change the repository carry the owner's direct authorization and the exact file scope in a form the implementation environment can check before work begins.
