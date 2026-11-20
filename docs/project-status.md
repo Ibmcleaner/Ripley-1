@@ -23,6 +23,7 @@ Scope: approved Phase 1 documentation handoff for Ibmcleaner/Ripley-1.
 | Cyrus Engineering Doctrine v1 | ACCEPTED by owner 2026-11-19 (docs/architecture/cyrus-engineering-doctrine.md). A standard for future ADRs and engines. Adoption does not certify that Ripley conforms; no Ripley runtime requirement is created by this document |
 | Sprint 6 — offline dispatch identity preflight | ACCEPTED (PR #31, merged fa44976). Offline only; Linux 185/0 skips, Windows 185/4 skips, preflight 12 of 12 matched. Passing it does not authorize dispatch or establish provider acceptance |
 | Sprint 7 — offline capture receipt (ADR-011) | ACCEPTED (PR #34, merged 86012c8). Offline, local-file intake only. Linux 202/0 skips, Windows 202/4 expected skips, focused capture tests 17/17. No network acquisition, no provider activity |
+| Sprint 8 — advisory CI on pull requests | IMPLEMENTED, pending review (PR #36). One advisory Linux check: full suite, pinned SDK, zero skips, disposable copy. Not a merge gate; no secrets; no provider activity |
 
 ## Maturity vocabulary
 
