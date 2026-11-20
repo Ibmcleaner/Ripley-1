@@ -1,0 +1,102 @@
+name: tests
+
+# Advisory regression check. Development tooling only.
+# A green result means the Linux suite passed in full with the pinned SDK.
+# It does not authorize a dispatch, a merge, or anything else.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux full suite (advisory)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the proposal
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Record what is being tested
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TESTED_SHA: ${{ github.sha }}
+        run: |
+          echo "event:            $EVENT"
+          echo "pull request:     #$PR_NUMBER"
+          echo "proposal head:    $PR_HEAD_SHA"
+          echo "base (main):      $PR_BASE_SHA"
+          echo "tested commit:    $TESTED_SHA (the proposal merged into the base)"
+          echo "checkout HEAD:    $(git rev-parse HEAD)"
+          python --version
+
+      - name: Install the pinned SDK
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements-providers.txt
+          python -m pip freeze
+
+      - name: Verify the pinned SDK is installed
+        run: |
+          python - <<'PY'
+          import importlib.metadata, pathlib, sys
+          lines = [l.strip() for l in pathlib.Path('requirements-providers.txt').read_text().splitlines() if l.strip()]
+          pins = [l for l in lines if l.startswith('anthropic==')]
+          if len(pins) != 1:
+              sys.exit('expected exactly one anthropic== pin, found %d' % len(pins))
+          want = pins[0].split('==', 1)[1]
+          have = importlib.metadata.version('anthropic')
+          print('pinned anthropic:', want)
+          print('installed anthropic:', have)
+          sys.exit(0 if have == want else 'installed SDK does not match the pin')
+          PY
+
+      - name: Confirm no provider credential or live gate is present
+        run: |
+          for name in RIPLEY_ANTHROPIC_API_KEY ANTHROPIC_API_KEY RIPLEY_LIVE_DISPATCH RIPLEY_PILOT_DISPATCH_BUDGET; do
+            if [ -n "$(printenv "$name")" ]; then
+              echo "refusing to run: $name is set"
+              exit 1
+            fi
+          done
+          echo "no provider credential or live gate variable is set"
+
+      - name: Make a disposable copy
+        run: |
+          COPY="$RUNNER_TEMP/ripley-ci-copy"
+          mkdir "$COPY"
+          git archive HEAD | tar -x -C "$COPY"
+          case "$COPY/" in "$GITHUB_WORKSPACE"/*) echo "copy is inside the checkout"; exit 1;; esac
+          echo "COPY=$COPY" >> "$GITHUB_ENV"
+          echo "disposable copy: $COPY"
+
+      - name: Self-check the pass/fail rule
+        working-directory: ${{ env.COPY }}
+        run: python -B .github/scripts/ci_tests.py --self-check
+
+      - name: Run the full suite in the disposable copy
+        working-directory: ${{ env.COPY }}
+        run: python -B .github/scripts/ci_tests.py
+
+      - name: Confirm the checkout was not changed
+        if: always()
+        run: |
+          CHANGES="$(git status --porcelain --untracked-files=all)"
+          if [ -n "$CHANGES" ]; then
+            echo "the checkout changed during the run:"
+            echo "$CHANGES"
+            exit 1
+          fi
+          echo "checkout unchanged"
