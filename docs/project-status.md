@@ -62,4 +62,4 @@ Future work should document actual decisions, implementation, tests, failures, d
 
 Microsoft Copilot maintains architecture continuity. ChatGPT supports approved GitHub documentation and independently raises technical concerns with reasoning and alternatives; it must not silently redesign Ripley.
 
-Note (2026-11-20): the roles sentence above reflects 2026-11-04. Current roles are in docs/PROJECT_STATE.md section 3.
+Note (2026-11-20): role statements above reflect 2026-11-04. Current roles are in docs/PROJECT_STATE.md section 4.

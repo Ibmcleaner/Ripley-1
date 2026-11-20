@@ -13,9 +13,14 @@ Cyrus Forge Systems builds durable engines meant to stay useful for many years, 
 - Human-in-the-loop is part of every Cyrus engine.
 - The engine must not grade its own homework.
 - Design for extension. Build the minimum necessary foundation. Prove the foundation. Then add capability in controlled layers.
+- Build what we need. Earn complexity through evidence.
 - This repository is also the owner's engineering portfolio. The real process is documented as it happens, including failures and limitations.
 
-The governing standard is docs/architecture/cyrus-engineering-doctrine.md (Doctrine v1, accepted 2026-11-19).
+Priority order (owner, 2026-11-19): security and core integrity; health and self-preservation; reliability and service continuity; failure intelligence and safe recovery; evolution and modernization; performance and efficiency; customer extensibility.
+
+Evolution cannot violate security. Performance cannot violate correctness. Availability cannot justify corrupted evidence. Autonomy cannot overrule governance.
+
+The governing standard is docs/architecture/cyrus-engineering-doctrine.md (Doctrine v1, accepted 2026-11-19). Adopting it is not evidence that Ripley implements it.
 
 ## 2. What we are building
 
@@ -23,47 +28,60 @@ Cyrus Ripley One (Ripley, R1) is a domain-agnostic engine. The Core handles task
 
 Core flow: Task -> Ripley -> Worker -> Result -> Validation -> Review/Correction -> Evidence -> Approval
 
-- Orchestration and state are native to Ripley. No LangGraph, CrewAI, BeeAI, Microsoft Agent Framework or AutoGen in the control plane. Reopen only on evidence, and then only bounded inside a Worker.
+- Today Ripley runs one task through one worker and records hash-verified evidence in an append-only ledger. It has no agents, no queues, no CI and one provider.
 - The NFL is the first real domain. It was chosen because it is a hard, multi-pipeline problem. All NFL logic lives outside the Core.
 - A small synthetic non-NFL domain exists to test the domain-agnostic claim.
 - The first NFL task is a pregame player-availability brief, not game prediction.
-- The separate market-informed NFL beta is not part of Ripley and is never cited as Ripley evidence.
+- NFL Predictor V2+ is a future workload on Ripley. It is not the current build.
+- The separate market-informed weekly NFL beta is not part of Ripley and is never cited as Ripley evidence.
 - Future domains under consideration: inventory and demand, logistics, sales forecasting, business operations.
 
-## 3. Roles
+## 3. Agent and orchestration direction
+
+This section is direction, not an accepted design.
+
+- Ripley is intended to become an agentic orchestration platform. Domain workloads exercise the platform without redefining it.
+- Orchestration and state are native to Ripley. No LangGraph, CrewAI, BeeAI, Microsoft Agent Framework or AutoGen in the control plane. Reopen only on evidence, and then only bounded inside a Worker. (Owner decision, 2026-11-17.)
+- Agents are defined by responsibility before count. There is no fixed number of agents.
+- Hard spending limits must not depend solely on an LLM agent.
+- No agent design has been accepted. Building any agent capability requires an ADR and an owner decision.
+
+## 4. Roles
 
 | Who | Role |
 |---|---|
-| Robert Legorreta | Product Owner. Sets priorities, makes owner decisions, accepts work, merges, and authorizes any live or paid action. |
-| Claude | Architecture lead and principal reviewer. Writes assignments, reviews actual diffs and test output, runs tests on Linux. Does not modify the repository. |
-| ChatGPT | Primary implementation agent. Writes code and documentation on a branch and opens PRs. Does not merge. |
-| Copilot | Scope control, architecture and quality review, Product Owner support. |
+| Robert Legorreta | Product Owner and CEO. Sets priorities, makes owner decisions, accepts work, merges, and personally signs any live or paid authorization. |
+| Copilot | Senior PM and Scrum Master. Chairs round tables, rules on scope, writes decision briefs, keeps the decision log. Does not implement or review code. |
+| Claude | Architecture lead and principal independent reviewer. Writes assignments, reviews published commits, runs tests on Linux. Does not push to the repository. |
+| ChatGPT | Primary implementer and documentation maintainer. Builds on a branch, publishes its own branches and PRs. Does not merge. |
 
 The owner relays every message between models. Models work from actual artifacts (files, diffs, test output), not summaries.
 
-## 4. Workflow
+## 5. Workflow
 
 Work runs in short Sprints. No story points, velocity targets or ceremony.
 
 Each Sprint has: a Sprint Goal, a prioritized backlog, acceptance criteria, a Definition of Done, and assigned implementation and review responsibilities.
 
 Normal sequence:
-1. Owner sets the Sprint Goal.
-2. Claude writes the assignment as one copy-and-paste block. Copilot checks scope.
-3. Owner relays it to ChatGPT.
-4. ChatGPT implements on a branch, opens a PR and reports back.
-5. Claude reviews the diff and runs the tests on Linux.
-6. Owner runs the tests on Windows.
-7. Owner merges.
-8. Closeout PR records the evidence and updates section 5 and section 6 of this file.
+1. Owner sets the direction.
+2. Claude proposes the architecture. ChatGPT gives an independent implementation view.
+3. Copilot compares both and writes one decision brief.
+4. Owner decides GO or NO-GO.
+5. Claude writes the assignment as one copy block. Copilot makes a final scope check.
+6. ChatGPT implements on a branch, opens a draft PR and reports back.
+7. Claude reviews the published commit and runs the tests on Linux.
+8. Owner runs the tests on Windows where the sprint calls for it.
+9. Owner merges.
+10. A closeout PR records the evidence and updates sections 6 and 7 of this file.
+
+Daily cadence: a round table each morning at 9:00 AM Central and a closeout recap each evening. Each party states what it needs from the others and from the owner.
 
 Status updates use: Completed / In progress / Blocked / Owner decision needed / Next.
 
 Each Sprint ends with a Review on working evidence and a short Retrospective: what worked, what caused rework, what should change, what should remain, one improvement to carry forward.
 
-Definition of Done: acceptance criteria met, tests run independently on Linux and Windows with results recorded, PR merged by the owner, and this file updated.
-
-A whiteboard session and an ADR are used only for real architecture, safety, governance or owner decisions.
+Definition of Done: acceptance criteria met, tests run independently with results recorded, PR merged by the owner, and this file updated.
 
 Standing rules:
 - The repository is the system of record. Chat history is not.
@@ -71,10 +89,13 @@ Standing rules:
 - Never silently redesign established architecture. Raise the concern with reasoning and an alternative.
 - Think independently. No agreement for the sake of consensus. Separate evidence from hypothesis.
 - Size concerns. Mid-to-major concerns get full reasoning. Minor ones get one line or are left out.
+- Every prompt the owner must relay is one copy block.
+- Before a workstream is proposed to the owner: three plain sentences stating what it is, what it examines or builds, and why it is needed now. If it looks backward at old material, say so in the first sentence.
 - Any live or paid provider call needs a separate written owner authorization recorded in docs/decisions. API keys never appear in records or chat.
-- If an instruction from another model does not match this workflow, stop and tell the owner.
+- If an instruction from another model does not match this workflow or these roles, stop and tell the owner.
+- A shared Google Drive folder is approved for passing files among the models. It is transport only: original bytes, hash-verified on both ends, no secrets, no silent changes to another party's file.
 
-## 5. Current state (as of 2026-11-20)
+## 6. Current state (as of 2026-11-20)
 
 Completed:
 - Phases 1 to 5 merged.
@@ -82,23 +103,31 @@ Completed:
 - Sprint 5 (output schema and provider error diagnostics) accepted, PR #27.
 - FI-001 offline root-cause analysis merged, PR #29. Historical cause of the HTTP 400 is UNCONFIRMED.
 - Cyrus Engineering Doctrine v1 adopted, PR #30.
-- Sprint 6 (offline dispatch identity preflight) accepted, PR #31, closeout PR #32. Tests: Linux 185 run, 0 skips. Windows 185 run, 4 expected skips. Preflight 12 of 12 matched.
+- Sprint 6 (offline dispatch identity preflight) accepted, PR #31, closeout PR #32. Tests: Linux 185 run, 0 skips. Windows 185 run, 4 expected skips. Owner Windows preflight 12 of 12 matched.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. A provider support case is open.
 - Two authorized live dispatches have been used. Neither produced model output (#1 auth_rejected, since remediated; #2 HTTP 400).
+- Phase 6E has not started.
 
 Frozen by owner direction:
 - Provider request, prompt, model, schema and dispatch logic.
 - No further sprint re-investigating the HTTP 400 without materially new evidence.
 
-Known small item:
-- Test P6-11 briefly rewrites the real prompt file. To be changed to use a temporary copy in a later sprint.
+Owner direction of 2026-11-20:
+- Priority is infrastructure: how the engine works, what it does, and how it is prepared to gather data for a future model.
+- Recovered NFL material (old workbooks, scripts, coefficients, reports) is reference only. No auditing, validating, reproducing or comparing it.
+- No data comparison, accuracy check or backtest until a new model exists.
+
+Known small items:
+- Test P6-11 briefly rewrites the real prompt file. To be changed to use a temporary copy in a sprint allowed to touch existing tests.
+- Run scripts/pilot_preflight.py with python -I, and do not run it while the test suite is running.
 
 Owner decision needed:
-- Sprint 7 goal. Not yet set.
+- Sprint 7 goal. In planning.
+- Direction on a first agent capability (requires an ADR).
 
-## 6. History
+## 7. History
 
 | Date | Milestone | Evidence |
 |---|---|---|
@@ -115,9 +144,9 @@ Owner decision needed:
 | 2026-11-19 | Sprint 5 schema and diagnostics fix | PR #27 |
 | 2026-11-19 | FI-001 record | PR #29 |
 | 2026-11-19 | Doctrine v1 adopted | PR #30 |
-| 2026-11-19 | Sprint 6 offline preflight | PR #31, PR #32 |
+| 2026-11-19 | Sprint 6 offline preflight and closeout | PR #31, PR #32 |
 
-## 7. Future add-ons (ideas only)
+## 8. Future add-ons (ideas only)
 
 Nothing in this section is designed, scheduled or authorized. Each item needs its own entry criteria, ADR, review and owner authorization.
 
@@ -132,7 +161,9 @@ From the Phase 1 extension points:
 
 From the owner's product vision (2026-11-19):
 - An internal "clinical doctor" for operational self-awareness, where "unknown" is an acceptable diagnosis
+- Self-healing: detect, diagnose, select an approved response, remediate, verify recovery, record, learn
 - A reusable Cyrus Failure Intelligence Catalog, where a similar past failure is a reason to investigate and not proof
+- Technology horizon monitoring
 - A sandboxed Evolution Lab kept separate from production
 - A protected, signed core with a customer extension layer
 - Tiered autonomy
@@ -145,7 +176,16 @@ Deferred from earlier phases:
 - A second provider Worker
 - A real reviewer workflow
 
-## 8. Where things live
+Infrastructure candidates raised for Sprint 7 and later:
+- A first data-capture task that records source, capture time and content hash
+- CI on pull requests
+- A read-only status report from the ledger
+- Separating prompt and adapter from the provider worker
+- Dispatch-time request evidence (needs an ADR-010 revision and the freeze lifted)
+- Cost-on-read
+- Prediction, Outcome and Grade records
+
+## 9. Where things live
 
 | Need | Location |
 |---|---|
@@ -159,9 +199,9 @@ Deferred from earlier phases:
 | Milestone table and maturity labels | docs/project-status.md |
 | Model role cards and catch-up prompts | docs/onboarding/ |
 
-## 9. Keeping this file current
+## 10. Keeping this file current
 
-- ChatGPT updates sections 5 and 6 in every sprint closeout PR.
+- ChatGPT updates sections 6 and 7 in every sprint closeout PR.
 - Claude checks the update during review.
-- Sections 1 to 4 and 7 change only by owner decision.
+- Sections 1 to 5 and 8 change only by owner decision.
 - Update the "Last updated" line with the date and the main commit.
