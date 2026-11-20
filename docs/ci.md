@@ -9,7 +9,7 @@ The tests workflow runs one advisory Linux job for pull requests targeting main.
 3. Verifies that the installed Anthropic SDK matches the requirement pin.
 4. Refuses to run if any of RIPLEY_ANTHROPIC_API_KEY, ANTHROPIC_API_KEY, RIPLEY_LIVE_DISPATCH or RIPLEY_PILOT_DISPATCH_BUDGET has a non-empty value.
 5. Archives the checked-out commit into a disposable directory outside the checkout.
-6. Self-checks the runner's pass/fail rule and connection guard.
+6. Self-checks the runner's pass/fail rule, including unexpected successes, and its exact loopback and connection rules.
 7. Runs the complete test suite in the disposable copy.
 8. Checks that the authoritative checkout has no changes, including after an earlier step fails.
 
@@ -27,7 +27,7 @@ GitHub's pull_request workflow checks the proposal merged into the current base.
 
 ## Network and secrets
 
-The runner wraps socket connect and connect_ex in the main test process. It refuses connections whose string host does not begin with one of its loopback prefixes. This guard is limited to those main-process calls. It does not globally sandbox arbitrary child processes started by tests. Existing Ripley mock transports and socket protections remain part of the suite.
+The runner wraps socket connect and connect_ex in the main test process. For network address tuples it accepts the exact name localhost or a numeric address parsed as loopback. Byte-string and bytearray hosts are decoded as ASCII before that check; invalid text and other host types are refused. This guard is limited to those main-process calls. It does not globally sandbox arbitrary child processes started by tests. Existing Ripley mock transports and socket protections remain part of the suite.
 
 The workflow supplies no application or provider secret. No application or provider secret should be added to the repository for this workflow.
 
@@ -75,6 +75,8 @@ python -m unittest discover -s tests
 | Windows | No owner Windows suite was run for Sprint 8. Nothing that runs on Robert's machine changed. |
 
 ## Known limitations
+
+The first three paragraphs record Sprint 8 limitations. Sprint 9 replaces the prefix rule, adds the unexpected-success self-check and changes the success log to say no variable "has a value." The main-process-only scope continues.
 
 **Loopback rule.** The connection guard treats any host name beginning with "localhost" or "127." as loopback. A name such as `localhost.example.com` is therefore not refused. Ordinary outside addresses, including a provider address, are refused. This was an error in the runner as designed by Claude. A future correction candidate is to accept only the exact name localhost and addresses that parse as loopback IPs.
 

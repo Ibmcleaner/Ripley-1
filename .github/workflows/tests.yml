@@ -71,7 +71,7 @@ jobs:
               exit 1
             fi
           done
-          echo "no provider credential or live gate variable is set"
+          echo "no provider credential or live gate variable has a value"
 
       - name: Make a disposable copy
         run: |
