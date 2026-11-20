@@ -4,7 +4,7 @@ Cyrus Ripley One (Ripley / R1) is a domain-agnostic AI engine/platform being dev
 
 ## Current status
 
-Phases 1–5 complete and merged. Phase 5 (local worker isolation, enforceable deadlines) independently executed on Windows. Next: Phase 6 whiteboard.
+See docs/PROJECT_STATE.md for current state, roles and workflow. That file is updated at every sprint closeout.
 
 ## Historical Phase 1 baseline
 
@@ -14,6 +14,8 @@ Phases 1–5 complete and merged. Phase 5 (local worker isolation, enforceable d
 | Phase 1 architecture decisions | COMPLETE; approved design |
 | Phase 1 GitHub documentation handoff | This documentation change |
 | Phase 2 implementation | NOT STARTED |
+
+Note (2026-11-20): the paragraph below describes the repository as of 2026-11-04. Working code and tests have been added since; see docs/PROJECT_STATE.md.
 
 This repository documents architecture, not working Ripley software. No production implementation, executable skeleton, runtime tests, or production validation is included.
 
