@@ -110,7 +110,7 @@ class PilotPreflightTests(unittest.TestCase):
         (self.repo / 'docs').mkdir()
         (self.repo / 'docs/example.md').write_bytes(b'fixture')
         self.commit()
-        self.assertIn('non-governed=1 ["docs/example.md"]', self.check())
+        self.assertIn('non-governed=1 ["docs"]', self.check())
 
     def test_pf_07_uncommitted(self):
         self.append_byte('scripts/pilot_dispatch.py')
@@ -124,9 +124,21 @@ class PilotPreflightTests(unittest.TestCase):
         (cache / 'x.pyc').touch()
         (self.repo / 'pilot').mkdir()
         (self.repo / 'pilot/x.sqlite').touch()
-        self.assertIn('pilot/x.sqlite', self.check())
+        self.assertIn('non-governed=1 ["pilot"]', self.check())
         (self.repo / 'scripts/added.py').touch()
         self.assertIn('scripts/added.py', self.check((5,)))
+
+    def test_pf_18_ignored_paths(self):
+        with (self.repo / '.git/info/exclude').open('a') as rules:
+            rules.write('\n/scripts/extra2.py\n/ripley/__pycache__/\n/pilot/\n')
+        for directory in ('ripley/__pycache__', 'pilot'):
+            path = self.repo / directory
+            path.mkdir(exist_ok=True)
+            (path / 'entry').touch()
+        self.check()
+        (self.repo / 'scripts/extra2.py').touch()
+        self.assertIn('05 Untracked files | MISMATCHED | governed=1 ["scripts/extra2.py"]',
+                      self.check((5,)))
 
     def test_pf_09_missing_history(self):
         self.opts['baseline'] = '0' * 40

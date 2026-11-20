@@ -36,6 +36,8 @@ Supply `--expected-head` for an additional exact HEAD comparison. `--repo` defau
 
 MATCHED means the evidence satisfied the stated comparison. MISMATCHED means a comparison completed and differed. UNAVAILABLE means evidence or a valid expectation was missing, or a prerequisite failed. Hashes and commits require full lowercase hexadecimal values. Exit 0 requires twelve matches. Exit 1 reports the number of mismatched or unavailable checks. CLI usage errors exit 2.
 
-The governed paths are `ripley/`, `tests/`, `scripts/`, `fixtures/`, root-level `requirements*.txt` (including `requirements-providers.txt`), `.gitattributes`, `pyproject.toml`, `setup.py` and `setup.cfg`. Paths containing a `__pycache__` component and files ending in `.pyc` are excluded. Git-reported changes elsewhere, including `docs/`, `pilot/`, root venv directories, `README.md` and `demo.py`, are counted and listed for information. Git status uses the checkout's ignore rules for untracked files.
+The governed paths are `ripley/`, `tests/`, `scripts/`, `fixtures/`, root-level `requirements*.txt` (including `requirements-providers.txt`), `.gitattributes`, `pyproject.toml`, `setup.py` and `setup.cfg`. Paths containing a `__pycache__` component and files ending in `.pyc` are excluded. Git-reported changes elsewhere, including `docs/`, `pilot/`, root venv directories, `README.md` and `demo.py`, are summarized by their total count and sorted unique top-level path components. Check 5 detects ignored files and directories in governed paths and fails on them, subject to the cache exclusions above.
+
+Do not run the test suite and the preflight at the same time because an existing test briefly rewrites the prompt file.
 
 Results describe the moment of the run only. The command prints to standard output. It is separate from `scripts/pilot_dispatch.py` and grants no authorization.

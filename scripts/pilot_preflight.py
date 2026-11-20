@@ -66,8 +66,9 @@ def paths_result(paths):
                     or name in {'.gitattributes', 'setup.cfg', 'setup.py', 'pyproject.toml'})
         target = governed if root_file or parts[0] in {'ripley', 'tests', 'scripts', 'fixtures'} else other
         target.append(name)
+    other_roots = sorted({PurePosixPath(name).parts[0] for name in other})
     detail = (f'governed={len(governed)} {json.dumps(governed)} '
-              f'non-governed={len(other)} {json.dumps(other)}')
+              f'non-governed={len(other)} {json.dumps(other_roots)}')
     return ('MISMATCHED' if governed else 'MATCHED'), detail
 
 
@@ -98,14 +99,14 @@ def git_checks(repo, baseline, expected_head):
         proc = git(repo, 'diff', '--name-only', '--no-renames', '-z', baseline, head, '--')
         diff = (paths_result(os.fsdecode(proc.stdout).split('\0')[:-1]) if ok(proc)
                 else unavailable('Git diff unavailable'))
-    status = git(repo, 'status', '--porcelain=v1', '--untracked-files=all', '-z')
+    status = git(repo, 'status', '--porcelain=v1', '--untracked-files=all', '--ignored=matching', '-z')
     if not ok(status):
         return [first, base, diff] + [unavailable('Git status unavailable')] * 2
     tracked, untracked = [], []
     fields = iter(os.fsdecode(status.stdout).split('\0')[:-1])
     for entry in fields:
         flag = entry[:2]
-        (untracked if flag == '??' else tracked).append(entry[3:])
+        (untracked if flag in ('??', '!!') else tracked).append(entry[3:])
         if 'R' in flag or 'C' in flag:
             tracked.append(next(fields))
     return [first, base, diff, paths_result(tracked), paths_result(untracked)]
