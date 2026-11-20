@@ -55,6 +55,8 @@ def _store_root(directory):
 
 def _read_source(source_path, approved_root, limit):
     try:
+        if isinstance(os.fspath(source_path), bytes):
+            raise CaptureError('source_unapproved')
         source = Path(os.path.realpath(_local_path(source_path)))
         approved = _local_path(approved_root).resolve()
         mode = source.stat().st_mode
@@ -134,34 +136,23 @@ def _persist(root, digest, data):
         raise CaptureError('store_invalid') from exc
     try:
         _ensure_directory(path.parent)
-        if not path.with_suffix('.lock').exists() and _reuse(path, digest, len(data)):
+        if _reuse(path, digest, len(data)):
+            _sync_directory(path.parent)
             return
-        # Reserve this digest so simultaneous writers cannot replace a winner.
-        reservation = path.with_suffix('.lock')
-        reservation.mkdir()
+        temporary = None
         try:
-            if _reuse(path, digest, len(data)):
-                return
-            temporary = None
-            try:
-                with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
-                    temporary = Path(stream.name)
-                    stream.write(data)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                if _identity(temporary) != (digest, len(data)):
-                    raise OSError('temporary object verification failed')
-                os.replace(temporary, path)
-                try:
-                    _sync_directory(path.parent)
-                except OSError:
-                    path.unlink()
-                    raise
-            finally:
-                if temporary is not None:
-                    temporary.unlink(missing_ok=True)
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+            if _identity(temporary) != (digest, len(data)):
+                raise OSError('temporary object verification failed')
+            os.replace(temporary, path)
+            _sync_directory(path.parent)
         finally:
-            reservation.rmdir()
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
     except OSError as exc:
         raise CaptureError('artifact_write_failed') from exc
 
