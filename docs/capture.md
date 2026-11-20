@@ -6,7 +6,7 @@ A capture preserves the exact bytes of a local file and appends one receipt to t
 
 `capture_file(ledger, store_dir, source_path, *, approved_root, source_id, source_location, supplied_by, content_type, declared_retrieved_at=None, declared_effective_at=None, clock=None, max_bytes=DEFAULT_MAX_BYTES)` returns the record appended by the ledger.
 
-Supply an in-memory ledger or an external SQLite ledger, an external object store, and a regular source file whose real path is within the approved directory. Use local storage and directories controlled by the operator during capture and verification. URL and network-share path syntax are refused. The source is opened in binary mode. The default limit is 10 MiB. A complete zero-byte file is a valid input.
+Supply an in-memory ledger or an external SQLite ledger, an external object store, and a regular source file whose real path is within the approved directory. Source paths must be strings or path-like objects returning strings. Byte-string source paths, including path-like objects returning bytes, are refused before any source read or storage. Use local storage and directories controlled by the operator during capture and verification. URL and network-share path syntax are refused. The source is opened in binary mode. The default limit is 10 MiB. A complete zero-byte file is a valid input.
 
 | Receipt key | Meaning |
 |---|---|
@@ -26,9 +26,13 @@ Source location, declared retrieval time and declared effective time are recorde
 
 ## Stored object and receipt
 
-The object is stored at `<store_dir>/sha256/<first two hex digits>/<64 hex digits>`. Capture re-hashes an existing object before reuse. For a new object it reserves the digest with a temporary sibling lock directory, writes and flushes a same-directory temporary file, calls fsync, checks the temporary file's digest and size, and publishes by atomic replacement. On POSIX it also syncs the affected directories. A competing writer encountering the reservation fails without retry. An abrupt process termination can leave a reservation; this version performs no automatic stale-lock recovery.
+The object is stored at `<store_dir>/sha256/<first two hex digits>/<64 hex digits>`. Capture re-hashes an existing object and refuses corruption before reuse. On POSIX it syncs the destination directory before creating a receipt for that object, including on reuse.
 
-If a capture fails with `artifact_write_failed` and a directory named `<64 hex digits>.lock` exists where that object would be stored, an earlier capture of the same bytes was interrupted. After confirming that no capture is running, the operator removes that empty `.lock` directory by hand and repeats the capture. A leftover temporary file from the interrupted write may also be present in the same directory; it is not a stored object and may be deleted. Nothing else in the store should be removed.
+For a new object, capture writes and flushes a same-directory temporary file, calls file fsync, checks its digest and size by re-reading it, and publishes it with os.replace. On POSIX it then syncs the destination directory. A sync failure produces artifact_write_failed without a receipt. A final object that has already been published remains in place after a later failure; only the failing capture's temporary file is cleaned up. A later sequential capture can verify the existing object and retry its applicable durability sync before appending a receipt.
+
+Sprint 9 removes the per-digest reservation. Capture creates no .lock directory. Legacy reservation directories are ignored and left untouched; their former manual-removal procedure is no longer needed for capture to proceed. No automatic recovery or cleanup is provided.
+
+Capture is supported sequentially, one at a time. Concurrent capture publication is unsupported, untested and unclaimed.
 
 After publication, each successful capture appends a distinct record of kind `capture`, including repeat observations of the same bytes. If the ledger append fails, the object stays available for reuse. Its presence alone is not evidence of a capture.
 
@@ -51,12 +55,12 @@ Inspect `CaptureError.reason` for the failed step.
 | `invalid_metadata` | Invalid source metadata, timestamp, clock value or byte limit. |
 | `store_invalid` | Invalid store location, including a path into the repository. |
 | `source_missing` | The source does not exist. |
-| `source_unapproved` | The source is outside the approved root, is a directory or other nonregular file, or is a URL. |
+| `source_unapproved` | The source path is bytes or resolves to bytes, is outside the approved root, is a directory or other nonregular file, or is a URL. |
 | `source_unreadable` | Source inspection or opening failed. |
 | `read_interrupted` | Reading failed or the byte count differs from the file size just before the read. |
 | `too_large` | The bytes read exceed the configured limit. |
 | `store_corrupt` | An existing object's identity differs from the expected bytes. |
-| `artifact_write_failed` | Object reservation, persistence or verification failed. |
+| `artifact_write_failed` | Object persistence, applicable durability sync or temporary-file verification failed. |
 | `ledger_write_failed` | The ledger append raised after the object was stored. The original exception is chained. |
 
 ## Sprint 7 acceptance evidence
@@ -71,6 +75,8 @@ Inspect `CaptureError.reason` for the failed step.
 | Implementer Linux run | Implementer environment note: ChatGPT's Linux run showed 38 skips because the optional pinned SDK was not installed there. This was an environment limitation, not a defect. |
 
 ## Known limitations
+
+The following three paragraphs preserve the Sprint 7 closeout findings. Sprint 9 corrects the bytes-path refusal, removes reservations and adds detecting tests for temporary-file rehash and the sync protocol. The sequential-only boundary above remains in force.
 
 Bytes source path. A source path supplied as a byte string raises an unclassified TypeError after the content has been stored. No receipt is created. Correction candidate for the next authorized change to ripley/capture.py.
 

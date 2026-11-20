@@ -227,3 +227,186 @@ assert not unexpected, unexpected
 """
         subprocess.run([sys.executable, '-B', '-c', script, str(self.source), str(self.store)],
                        cwd=Path(capture.__file__).resolve().parents[1], check=True)
+
+    def test_cap_18_bytes_source_path(self):
+        source = self.source
+        encoded = os.fsencode(source)
+
+        class BytesPath:
+            def __fspath__(self):
+                return encoded
+
+        with patch.object(Path, 'open', side_effect=AssertionError('source read')) as opened, \
+                patch.object(capture, '_persist', side_effect=AssertionError('store write')) as persist:
+            for self.source in (encoded, BytesPath()):
+                with self.subTest(source=type(self.source).__name__):
+                    self.refused('source_unapproved')
+                    self.assertFalse(self.files())
+                    self.assertFalse(self.store.exists())
+            opened.assert_not_called()
+            persist.assert_not_called()
+
+        for self.source in (source, str(source)):
+            record = self.take()
+            self.assertEqual(capture.verify_capture(self.ledger, self.store, record.id)[0],
+                             'MATCHED')
+
+    def test_cap_19_no_reservation(self):
+        legacy = self.object(self.raw).with_suffix('.lock')
+        legacy.mkdir(parents=True)
+        before = legacy.stat()
+        created = []
+        mkdir = Path.mkdir
+
+        def observe_mkdir(path, *args, **kwargs):
+            if path.name.endswith('.lock'):
+                created.append(path)
+            return mkdir(path, *args, **kwargs)
+
+        with patch.object(Path, 'mkdir', observe_mkdir):
+            first = self.take()
+            self.assertEqual(capture.verify_capture(self.ledger, self.store, first.id)[0],
+                             'MATCHED')
+            self.source = self.root / 'other.bin'
+            other = self.raw + b'other'
+            self.source.write_bytes(other)
+            second = self.take()
+
+        self.assertEqual(second.data['sha256'], hashlib.sha256(other).hexdigest())
+        self.assertEqual(self.object(other).read_bytes(), other)
+        self.assertEqual(capture.verify_capture(self.ledger, self.store, second.id)[0], 'MATCHED')
+        self.assertNotEqual(first.data['sha256'], second.data['sha256'])
+        self.assertEqual(created, [])
+        self.assertEqual(list(self.store.rglob('*.lock')), [legacy])
+        self.assertEqual(list(legacy.iterdir()), [])
+        self.assertEqual(legacy.stat().st_mtime_ns, before.st_mtime_ns)
+
+    def test_cap_20_temporary_rehash(self):
+        import stat
+
+        sync = os.fsync
+        altered = []
+
+        def corrupt_after_sync(descriptor):
+            sync(descriptor)
+            if stat.S_ISREG(os.fstat(descriptor).st_mode):
+                position = os.lseek(descriptor, 0, os.SEEK_CUR)
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                os.write(descriptor, bytes([self.raw[0] ^ 1]))
+                os.lseek(descriptor, position, os.SEEK_SET)
+                altered.append(descriptor)
+
+        with patch.object(os, 'fsync', corrupt_after_sync):
+            self.refused('artifact_write_failed')
+        self.assertEqual(len(altered), 1)
+        self.assertFalse(self.object(self.raw).exists())
+        self.assertFalse(self.files())
+
+    def test_cap_21_sync_protocol(self):
+        import stat
+
+        sync = os.fsync
+        replace = os.replace
+
+        def reset(name):
+            self.ledger = Ledger()
+            self.store = self.base / name
+
+        with self.subTest(phase='success ordering'):
+            events = []
+            published = []
+
+            def observe_sync(descriptor):
+                info = os.fstat(descriptor)
+                sync(descriptor)
+                if stat.S_ISREG(info.st_mode):
+                    events.append('file sync')
+                elif stat.S_ISDIR(info.st_mode) and published:
+                    self.assertTrue(os.path.samestat(info, self.object(self.raw).parent.stat()))
+                    events.append('destination directory sync')
+
+            def observe_publish(source, destination):
+                replace(source, destination)
+                published.append(destination)
+                events.append('publish')
+
+            append = self.ledger.add
+
+            def observe_receipt(*args, **kwargs):
+                events.append('receipt')
+                return append(*args, **kwargs)
+
+            with patch.object(os, 'fsync', observe_sync), \
+                    patch.object(os, 'replace', observe_publish), \
+                    patch.object(self.ledger, 'add', observe_receipt):
+                self.take()
+            want = ['file sync', 'publish']
+            if os.name == 'posix':
+                want.append('destination directory sync')
+            self.assertEqual(events, want + ['receipt'])
+
+        with self.subTest(phase='file sync failure'):
+            reset('file-sync-failure')
+
+            def fail_file_sync(descriptor):
+                if stat.S_ISREG(os.fstat(descriptor).st_mode):
+                    raise OSError('file sync failed')
+                sync(descriptor)
+
+            with patch.object(os, 'fsync', fail_file_sync):
+                self.refused('artifact_write_failed')
+            self.assertFalse(self.object(self.raw).exists())
+            self.assertFalse(self.files())
+
+        if os.name == 'posix':
+            with self.subTest(phase='post-publication directory failure'):
+                reset('directory-sync-failure')
+                published = []
+
+                def publish_then_mark(source, destination):
+                    replace(source, destination)
+                    published.append(destination)
+
+                def fail_published_directory(descriptor):
+                    info = os.fstat(descriptor)
+                    if published and stat.S_ISDIR(info.st_mode):
+                        self.assertTrue(os.path.samestat(info, self.object(self.raw).parent.stat()))
+                        raise OSError('directory sync failed')
+                    sync(descriptor)
+
+                with patch.object(os, 'replace', publish_then_mark), \
+                        patch.object(os, 'fsync', fail_published_directory):
+                    self.refused('artifact_write_failed')
+                self.assertEqual(len(published), 1)
+                self.assertEqual(self.files(), [self.object(self.raw)])
+                self.assertEqual(self.object(self.raw).read_bytes(), self.raw)
+
+                with patch.object(os, 'fsync', side_effect=OSError('reuse sync failed')):
+                    self.refused('artifact_write_failed')
+                self.assertEqual(self.object(self.raw).read_bytes(), self.raw)
+
+                events = []
+                append = self.ledger.add
+
+                def sync_reused_directory(descriptor):
+                    info = os.fstat(descriptor)
+                    self.assertTrue(stat.S_ISDIR(info.st_mode))
+                    self.assertTrue(os.path.samestat(info, self.object(self.raw).parent.stat()))
+                    sync(descriptor)
+                    events.append('reuse directory sync')
+
+                def receipt_after_reuse(*args, **kwargs):
+                    events.append('receipt')
+                    return append(*args, **kwargs)
+
+                with patch.object(os, 'replace', side_effect=AssertionError('rewrote object')), \
+                        patch.object(capture.tempfile, 'NamedTemporaryFile',
+                                     side_effect=AssertionError('created temporary file')), \
+                        patch.object(capture, '_identity', wraps=capture._identity) as identity, \
+                        patch.object(os, 'fsync', sync_reused_directory), \
+                        patch.object(self.ledger, 'add', receipt_after_reuse):
+                    record = self.take()
+                identity.assert_called_once_with(self.object(self.raw))
+                self.assertEqual(events, ['reuse directory sync', 'receipt'])
+                self.assertEqual(capture.verify_capture(self.ledger, self.store, record.id)[0],
+                                 'MATCHED')
