@@ -61,3 +61,5 @@ This change preserves that parent history, expands the README, corrects its leak
 Future work should document actual decisions, implementation, tests, failures, debugging, postmortems, lessons, improvements, demonstrations, and limitations as they occur. Protect secrets, credentials, personal information, and sensitive system details. Preserve useful failures and their resolutions.
 
 Microsoft Copilot maintains architecture continuity. ChatGPT supports approved GitHub documentation and independently raises technical concerns with reasoning and alternatives; it must not silently redesign Ripley.
+
+Note (2026-11-20): the roles sentence above reflects 2026-11-04. Current roles are in docs/PROJECT_STATE.md section 3.
