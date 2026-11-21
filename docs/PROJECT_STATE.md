@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-20, against main aca9d4d (PR #40).
+Last updated: 2026-11-20, against main c168067 (PR #41).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -117,6 +117,8 @@ Completed:
 - Sprint 9 (capture and CI runner corrections) accepted, PR #38. Tests: Linux 206 run, 0 skips. Windows 206 run, 4 expected skips. Focused capture tests 21 of 21. Seven mutation checks detected. Sprint 9 is closed when its closeout PR is reviewed and merged by the owner.
 - Sprint 9 closeout, PR #39.
 - Sprint 10 (Snapshot-to-capture linking, ADR-012) accepted, PR #40. Tests: Linux 231 run, 0 skips. Windows 231 run, 4 expected skips. Focused link tests 25 of 25. Fifteen mutation checks detected. Sprint 10 is closed when its closeout PR is reviewed and merged by the owner.
+- Sprint 10 closeout, PR #41.
+- Offline Infrastructure Phase Exit Record: docs/offline-infrastructure-phase-exit.md. The phase is accepted by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
 
 Advisory CI:
 - One advisory Linux check runs on pull requests targeting main: pinned SDK verified, full suite in a disposable copy, red on any failure, error, skip, unexpected success or zero tests. It uses a read-only token and no secrets. It is not a merge gate; no branch protection is configured. It is not a network sandbox and does not run Windows.
@@ -135,11 +137,11 @@ Offline Infrastructure Phase exit gate (approved by the owner, 2026-11-20):
 4. Offline local-file capture and provenance foundation proven. SATISFIED.
 5. A Task/Snapshot identifies the exact capture evidence it consumed and Ripley verifies that evidence. SATISFIED by Sprint 10 (ADR-012).
 6. Advisory full-suite CI proven. SATISFIED.
-7. A final repository phase-exit record states the evidence, limitations and deferred work, and the owner accepts the phase by merging it. NOT YET DONE.
-Sprint 10 completes the ENGINEERING exit gate (conditions 1 to 6). This does not itself close the phase. After this closeout is reviewed and merged, the next and final action is the docs-only Ripley One Offline Infrastructure Phase Exit Record. The owner's merge of that record is the formal phase acceptance. No Sprint 11 engineering work is authorized.
+7. A final repository phase-exit record states the evidence, limitations and deferred work, and the owner accepts the phase by merging it. SATISFIED BY THE OWNER'S MERGE of docs/offline-infrastructure-phase-exit.md.
+Conditions 1 to 6 were satisfied through Sprint 10. Condition 7 is satisfied, and the phase is formally accepted and closed, by the owner's merge of the phase-exit record. Acceptance is not production readiness, provider readiness or modeling readiness. The next action is a Phase Transition Round Table. No Sprint 11 exists, no next phase is chosen, and no next-phase work is authorized. Sprint numbering restarts at Sprint 1 once the next phase is named.
 
 Reviewed code baseline:
-The reviewed code baseline is main aca9d4d2264a71fe6b41d286c745a43a1e06907a (merge of PR #40), whose tree is identical to commit fa9c136, which Claude reviewed. It supersedes 697680b. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
+The reviewed code baseline is main aca9d4d2264a71fe6b41d286c745a43a1e06907a (merge of PR #40), whose tree is identical to commit fa9c136, which Claude reviewed. It supersedes 697680b. Main c168067 (merge of PR #41) differs from it in documentation only. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. A provider support case is open.
@@ -166,12 +168,12 @@ Known small items:
 - Reference test runs need proxy variables unset; P6-14 depends on it. See docs/ci.md, "Local commands".
 
 Owner decision needed:
-- Acceptance of the Offline Infrastructure Phase, by merging the phase-exit record. No Sprint 11 engineering work is authorized, and no next-phase direction is chosen by this record. Candidates carried forward for later planning: a read-only ledger status report; timing of the source-reader ADR.
+- Selection of the next phase, at a Phase Transition Round Table held after the Offline Infrastructure Phase is accepted. Not chosen by this record, and no next-phase work is authorized. Candidates carried forward for that planning: a read-only ledger status report; timing of the source-reader ADR.
 - Whether capture should ever acquire over a network. Blocked pending an owner decision on sources and a rights classification.
 - Whether and when the advisory check becomes a required check. Not decided.
 
 Next round-table topics:
-- The Offline Infrastructure Phase Exit Record.
+- Phase Transition Round Table (after phase acceptance).
 - Provider support reply on FI-001, when it arrives.
 - Timing of the source-reader ADR.
 
@@ -198,6 +200,7 @@ Next round-table topics:
 | 2026-11-20 | Sprint 8 advisory CI on pull requests | PR #36, docs/ci.md |
 | 2026-11-20 | Sprint 9 capture and CI runner corrections | PR #38, docs/capture.md, docs/ci.md |
 | 2026-11-20 | Sprint 10 Snapshot-to-capture linking, ADR-012; engineering exit gate complete | PR #40, docs/capture.md |
+| 2026-11-20 | Sprint 10 closeout; Offline Infrastructure Phase Exit Record (phase accepted by the owner's merge of the record) | PR #41, docs/offline-infrastructure-phase-exit.md |
 
 ## 8. Future add-ons (ideas only)
 
@@ -252,6 +255,7 @@ Infrastructure candidates raised for Sprint 7 and later:
 | Model role cards and catch-up prompts | docs/onboarding/ |
 | Capture receipts and the artifact store | docs/capture.md, docs/decisions/sprint-7-adrs.md, docs/decisions/sprint-10-adrs.md |
 | Advisory CI check | docs/ci.md, .github/workflows/tests.yml, .github/scripts/ci_tests.py |
+| Offline Infrastructure Phase exit record | docs/offline-infrastructure-phase-exit.md |
 
 ## 10. Keeping this file current
 
