@@ -153,7 +153,7 @@ None of these is scheduled work.
 - The feasibility review improved the design within the two-round limit: quote length measured in bytes, a one-read test that does not depend on how a file is opened, and removal of a test that forbade the word "accepted" in ordinary text.
 - ADR-013 was published byte-identical to the approved text.
 - The first published commit passed independent review with no correction. All 29 assigned mutations were detected.
-- No pre-existing file changed and no existing test was touched.
+- No pre-existing runtime or test file changed and no existing test was touched. The only pre-existing file modified was docs/project-status.md, by its one assigned row.
 
 **What caused friction**
 

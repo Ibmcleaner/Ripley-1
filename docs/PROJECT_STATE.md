@@ -104,7 +104,7 @@ Standing rules:
 - At most two material architecture correction rounds. A material disagreement that remains after the second goes to the owner through Copilot.
 - A newly discovered item enters an active sprint only if it is blocking now or a defect in current work. Anything else is deferred. Schedule pressure never authorizes weakening a test, bypassing review or a hard stop, relaxing evidence, widening agent authority or merging unverified work.
 
-## 6. Current state (as of 2026-11-20)
+## 6. Current state (as of 2026-11-21)
 
 Completed:
 - Phases 1 to 5 merged.
