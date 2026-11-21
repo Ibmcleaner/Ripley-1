@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-20, against main 697680b (PR #38).
+Last updated: 2026-11-20, against main aca9d4d (PR #40).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -115,18 +115,31 @@ Completed:
 - Sprint 8 (advisory CI on pull requests) accepted, PR #36. Independent reproduction: 202 run, 0 skips. Hosted runs 1 and 2 green. Sprint 8 is closed when its closeout PR is reviewed and merged by the owner.
 - Sprint 8 closeout, PR #37.
 - Sprint 9 (capture and CI runner corrections) accepted, PR #38. Tests: Linux 206 run, 0 skips. Windows 206 run, 4 expected skips. Focused capture tests 21 of 21. Seven mutation checks detected. Sprint 9 is closed when its closeout PR is reviewed and merged by the owner.
+- Sprint 9 closeout, PR #39.
+- Sprint 10 (Snapshot-to-capture linking, ADR-012) accepted, PR #40. Tests: Linux 231 run, 0 skips. Windows 231 run, 4 expected skips. Focused link tests 25 of 25. Fifteen mutation checks detected. Sprint 10 is closed when its closeout PR is reviewed and merged by the owner.
 
 Advisory CI:
 - One advisory Linux check runs on pull requests targeting main: pinned SDK verified, full suite in a disposable copy, red on any failure, error, skip, unexpected success or zero tests. It uses a read-only token and no secrets. It is not a merge gate; no branch protection is configured. It is not a network sandbox and does not run Windows.
 - The connection guard accepts only the exact name localhost or a numeric loopback address, and covers the main test process only.
 
-Capture capability (ADR-011):
+Capture capability (ADR-011, ADR-012):
 - Ripley One now has a deterministic offline local-file capture capability. It can: accept a local file from an approved directory; preserve the exact bytes in a content-addressed store outside the repository; write a capture receipt to the ledger; record Ripley's UTC captured_at separately from declared source times; verify stored content as MATCHED, MISMATCHED or UNAVAILABLE.
-- It does not: acquire anything over a network; use or contain agents; select sources on its own; parse content; link a Snapshot to a capture; involve any provider; do predictive modeling.
+- It does not: acquire anything over a network; use or contain agents; select sources on its own; parse content; involve any provider; do predictive modeling.
 - Capture is sequential-only; concurrent capture is unsupported, untested and unclaimed. Byte-string source paths are refused before any read or store write. An object published at its final path is not removed by a later failure of that capture. Reuse of an existing object repeats the applicable durability sync before a receipt is written. There is no reservation or lock.
+- A task run can declare the capture receipts it relies on (ADR-012). References are stored on the Snapshot outside inputs, as capture_id plus receipt_hash, in canonical order. Ripley verifies every reference before every worker attempt and records each verification separately; a failed verification blocks the task with no fallback. The task key is unchanged; a submission with the same active task key and different references is refused as capture_reference_conflict. Recovery keeps the original references, verifies before spending its authorization, and verifies again at each boundary. The Evidence record pins the receipts and the verification record. This proves the declared evidence was identified and verified at the execution boundary. It does not prove extraction correctness, source authenticity, truth of source declarations, or availability of the stored bytes at approval time. Provider workers refuse capture references.
+
+Offline Infrastructure Phase exit gate (approved by the owner, 2026-11-20):
+1. Core execution and evidence flow proven within bounded local and mock scope. SATISFIED.
+2. Durable state and honest recovery proven. SATISFIED.
+3. Worker isolation and bounded execution proven. SATISFIED.
+4. Offline local-file capture and provenance foundation proven. SATISFIED.
+5. A Task/Snapshot identifies the exact capture evidence it consumed and Ripley verifies that evidence. SATISFIED by Sprint 10 (ADR-012).
+6. Advisory full-suite CI proven. SATISFIED.
+7. A final repository phase-exit record states the evidence, limitations and deferred work, and the owner accepts the phase by merging it. NOT YET DONE.
+Sprint 10 completes the ENGINEERING exit gate (conditions 1 to 6). This does not itself close the phase. After this closeout is reviewed and merged, the next and final action is the docs-only Ripley One Offline Infrastructure Phase Exit Record. The owner's merge of that record is the formal phase acceptance. No Sprint 11 engineering work is authorized.
 
 Reviewed code baseline:
-The reviewed code baseline is main 697680bb2c69d0f7fa6bbb1557912ecf694c24cc (merge of PR #38), whose tree is identical to commit 3893fa5, which Claude reviewed. It supersedes 86012c8. The reviewed CI tooling is the same commit: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. Neither statement authorizes a dispatch.
+The reviewed code baseline is main aca9d4d2264a71fe6b41d286c745a43a1e06907a (merge of PR #40), whose tree is identical to commit fa9c136, which Claude reviewed. It supersedes 697680b. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. A provider support case is open.
@@ -149,14 +162,16 @@ Known small items:
 - Capture is sequential-only, and an abruptly terminated capture can leave a temporary file. See docs/capture.md, "Known limitations".
 - The CI connection guard covers the main test process only. See docs/ci.md, "Known limitations".
 - Exact payloads sent through long chat messages have been reformatted or truncated in transit. Prefer a hash-verified file through the approved shared Drive folder. Process recommendation only.
+- Capture references are not accepted on provider workers (ADR-012), and approval does not re-verify stored capture bytes. See docs/capture.md, "Known limitations".
+- Reference test runs need proxy variables unset; P6-14 depends on it. See docs/ci.md, "Local commands".
 
 Owner decision needed:
-- Sprint 10 goal. Not yet set and not chosen by this record. Candidates carried forward: Snapshot-to-capture linking (ranked next in Sprint 9 planning); a read-only ledger status report; timing of the source-reader ADR.
+- Acceptance of the Offline Infrastructure Phase, by merging the phase-exit record. No Sprint 11 engineering work is authorized, and no next-phase direction is chosen by this record. Candidates carried forward for later planning: a read-only ledger status report; timing of the source-reader ADR.
 - Whether capture should ever acquire over a network. Blocked pending an owner decision on sources and a rights classification.
 - Whether and when the advisory check becomes a required check. Not decided.
 
 Next round-table topics:
-- Sprint 10 selection.
+- The Offline Infrastructure Phase Exit Record.
 - Provider support reply on FI-001, when it arrives.
 - Timing of the source-reader ADR.
 
@@ -182,6 +197,7 @@ Next round-table topics:
 | 2026-11-20 | Sprint 7 offline capture receipt, ADR-011 | PR #34, docs/capture.md |
 | 2026-11-20 | Sprint 8 advisory CI on pull requests | PR #36, docs/ci.md |
 | 2026-11-20 | Sprint 9 capture and CI runner corrections | PR #38, docs/capture.md, docs/ci.md |
+| 2026-11-20 | Sprint 10 Snapshot-to-capture linking, ADR-012; engineering exit gate complete | PR #40, docs/capture.md |
 
 ## 8. Future add-ons (ideas only)
 
@@ -214,7 +230,6 @@ Deferred from earlier phases:
 - A real reviewer workflow
 
 Infrastructure candidates raised for Sprint 7 and later:
-- Linking Snapshots to the captures they used
 - Network acquisition for capture (needs its own decision and a rights classification)
 - A read-only status report from the ledger
 - Separating prompt and adapter from the provider worker
@@ -228,14 +243,14 @@ Infrastructure candidates raised for Sprint 7 and later:
 |---|---|
 | The standard every engine inherits | docs/architecture/cyrus-engineering-doctrine.md |
 | Architecture and contracts | docs/architecture/phase-1.md, docs/architecture/contracts.md |
-| Decisions (ADR-001 to ADR-011) | docs/decisions/ |
+| Decisions (ADR-001 to ADR-012) | docs/decisions/ |
 | Owner authorizations for live actions | docs/decisions/phase-6d-*.md |
 | Phase write-ups | docs/phase-2-skeleton.md through docs/phase-6-provider-worker.md |
 | Live pilot and preflight records | docs/pilot/ |
 | Failure records | docs/failure-intelligence/ |
 | Milestone table and maturity labels | docs/project-status.md |
 | Model role cards and catch-up prompts | docs/onboarding/ |
-| Capture receipts and the artifact store | docs/capture.md, docs/decisions/sprint-7-adrs.md |
+| Capture receipts and the artifact store | docs/capture.md, docs/decisions/sprint-7-adrs.md, docs/decisions/sprint-10-adrs.md |
 | Advisory CI check | docs/ci.md, .github/workflows/tests.yml, .github/scripts/ci_tests.py |
 
 ## 10. Keeping this file current

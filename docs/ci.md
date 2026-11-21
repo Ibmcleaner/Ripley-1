@@ -58,6 +58,8 @@ The ordinary command remains available:
 python -m unittest discover -s tests
 ```
 
+Run reference suites with inherited proxy variables unset: ALL_PROXY, all_proxy, HTTPS_PROXY, https_proxy, HTTP_PROXY and http_proxy. The existing provider test P6-14 depends on this. With a SOCKS proxy variable set, the SDK fails while building its client before the socket guard is reached, and P6-14 reports blocked_worker_failure where blocked_host_failure is expected. This is an environment effect and not a defect. The hosted check runs with no proxy configured.
+
 ## Sprint 8 acceptance evidence
 
 | Evidence type | Recorded evidence |
