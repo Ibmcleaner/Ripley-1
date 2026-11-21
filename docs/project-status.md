@@ -26,6 +26,7 @@ Scope: approved Phase 1 documentation handoff for Ibmcleaner/Ripley-1.
 | Sprint 8 — advisory CI on pull requests | ACCEPTED (PR #36, merged ddb23be). One advisory Linux check: full suite, pinned SDK, zero skips, disposable copy. Independent reproduction 202 run / 0 skips; hosted runs 1 and 2 green. Not a merge gate; no secrets; no provider activity |
 | Sprint 9 — capture and CI runner corrections | ACCEPTED (PR #38, merged 697680b). Seven known items from Sprints 7 and 8 corrected; no new capability. Linux 206/0 skips, Windows 206/4 expected skips, focused capture tests 21/21; seven mutation checks detected. Capture is sequential-only. Advisory CI; no provider activity |
 | Sprint 10 — Snapshot-to-capture linking (ADR-012) | ACCEPTED (PR #40, merged aca9d4d). Capture references on the Snapshot, verified before every worker attempt; local workers only; task key unchanged. Linux 231/0 skips, Windows 231/4 expected skips, focused link tests 25/25; fifteen mutation checks detected; provider pins unchanged. Completes the engineering exit gate of the Offline Infrastructure Phase; the phase itself closes only with the owner-merged phase-exit record |
+| Ripley One Offline Infrastructure Phase | Exit record: docs/offline-infrastructure-phase-exit.md. Exit gate conditions 1 to 6 satisfied; condition 7 and formal acceptance are the owner's merge of that record. Not production readiness, provider readiness or modeling readiness. Dispatch #3 remains paused and unauthorized |
 
 ## Maturity vocabulary
 
