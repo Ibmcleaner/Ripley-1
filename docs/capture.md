@@ -178,3 +178,43 @@ For exact or verbatim implementation payloads, prefer a hash-verified file passe
 This is a process recommendation only.
 
 It does not change the shared-Drive rules.
+
+## Sprint 10 acceptance evidence
+
+| Evidence type | Recorded evidence |
+|---|---|
+| Publication | Implementation PR #40. Commit 1: `3581419ab9b00f35f9ee07bde3bee409d7748afe` (ADR-012 only). Commit 2 / reviewed head: `fa9c136189a7d3d839d12717445ddedd8c1d5915`. Merged to main as `aca9d4d2264a71fe6b41d286c745a43a1e06907a`. The merged tree is identical to the reviewed head. |
+| ADR identity | Published ADR-012 SHA-256: `5ec642a5233475297844b87fd1d51bc20cbae1547e75df544d3d041534cc7928`, byte-identical to the assigned text. ADR-010 and ADR-011 unchanged. |
+| Independent review | Claude verdict: APPROVED WITH NONBLOCKING NOTES FOR OWNER WINDOWS GATE. |
+| Independent Linux run | Claude, Python 3.13 with anthropic 2.9.0, on tested commit `0310d44ded24a83d140312b012a8fe404f594f69` in a disposable copy with no proxy variables: focused link tests 25 run, 25 passed; full suite 231 run, 231 passed, 0 failures, 0 errors, 0 skipped. |
+| Independent mutation checks | Claude applied fifteen deliberate defects one at a time to the published ripley/core.py; each made at least one Sprint 10 test fail: 1. verification gate removed; 2. receipt-hash comparison removed; 3. mismatch allowed through; 4. earlier verification reused on recovery; 5. references leaked into the provider packet; 6. evidence receipt pin removed; 7. evidence verification pin removed; 8. recovery pre-check removed; 9. conflict check removed; 10. provider refusal removed; 11. verification on the first attempt only; 12. references added to the task key; 13. recovery dropping the original references; 14. duplicate ids silently deduplicated; 15. supplied order not canonicalized. |
+| Independent end-to-end trace | Claude used a separate script to capture a new synthetic file, run and approve a task, then reconstruct the chain from the SQLite file alone: approval, evidence, verification record, Snapshot reference, capture receipt, content SHA-256, stored bytes equal to the source file. Fourteen checks passed. |
+| Independent provider pins | Recomputed by Claude on the published code and unchanged: packet inputs `46719653ddac55f020472e4b63ddc78fecce202b0dbb549e9961bf1a50a2f3dd`; provider task key `cdbb31d169fef6a0f74d9cf435c05db81b7ea3c7dc2078dc1b122ce9a8486d81`; request body 4,805 bytes, SHA-256 `037e813693e8bbdd1e6bb6ad0a843c233fa5b8ef3472031f5e2dd5baade737e7`. |
+| Frozen identities | Packet, prompt and output-schema hashes unchanged. All 57 other baseline files byte-identical during implementation. No provider call was made. |
+| Hard-stop diagnostic — independent | Claude reproduced the two existing P6-14 failures on baseline main with a SOCKS proxy variable set and showed they pass with proxy variables unset, on both Python 3.12 and 3.13. The cause was the inherited proxy environment; Python version was not the cause. |
+| Hard-stop diagnostic — implementer-reported | ChatGPT's first local full-suite run showed two failures in the existing P6-14 tests and correctly stopped before commit 2. ChatGPT independently reproduced the baseline proxy-environment difference. No Core, test or provider change was made for it. The final no-proxy Linux result was 231 of 231. |
+| Owner Windows run — owner-reported | Focused link tests 25 run, 25 passed; full suite 231 run, 4 expected Phase 5 skips, 0 failures, 0 errors. |
+| Hosted run 2 — independently observed public page | [Run 44846090737](https://github.com/Ibmcleaner/Ripley-1/actions/runs/44846090737). Claude read the public run page, which shows Success, pull request #40, commit fa9c136, event pull_request, one job and no artifacts. |
+| Hosted run 2 — implementer-reported logs | The implementer reported 231 run and 0 skipped. Claude did not observe the logs. |
+| Hosted run 1 — implementer-reported result | [Run 44843680815](https://github.com/Ibmcleaner/Ripley-1/actions/runs/44843680815). Reported green by the implementer with 206 run and 0 skipped. |
+| Hosted run 1 — independently confirmed identity | Claude confirmed tested commit `299ff6025d47c7fde1abfc62687c5072f9cbb7a0` has main and commit 1 as parents. Claude did not observe the run page. |
+
+## Sprint 10 retrospective
+
+**What worked**
+
+- The phase exit gate was defined and approved before the sprint was chosen, so the sprint had one stated reason to exist.
+- Independent planning converged on the design, and the owner's decision to keep the task key unchanged was absorbed into ADR-012 before any code was written.
+- The specification was checked against a private prototype before release.
+- ADR-012 was published byte-identical to the assigned text.
+- A hard stop fired on an unexpected failure and was resolved by diagnosis, with no change to code or tests.
+- Fifteen deliberate mutations were all detected, and three literal pins proved the frozen provider request unchanged.
+
+**What caused rework or friction**
+
+- An inherited proxy variable in the implementer's shell produced two failures in existing provider tests. The same effect had appeared in Sprint 6 and had not been written down as a precondition for reference runs.
+- The implementation assignment was long, which is the transport risk recorded in Sprint 9.
+
+**One improvement to carry forward**
+
+Environment preconditions for reference test runs are written in the repository, not remembered. The proxy precondition is now in docs/ci.md.
