@@ -63,6 +63,30 @@ Inspect `CaptureError.reason` for the failed step.
 | `artifact_write_failed` | Object persistence, applicable durability sync or temporary-file verification failed. |
 | `ledger_write_failed` | The ledger append raised after the object was stored. The original exception is chained. |
 
+## Linking a task to its captures (ADR-012)
+
+Supply `capture_references` to `Ripley.run()` and the local artifact store as `capture_store` when constructing Ripley. Each reference contains exactly `capture_id` (a lowercase canonical UUID) and `receipt_hash` (64 lowercase hexadecimal characters). Up to 16 references are accepted. References are semantically unordered, canonicalized by capture_id and frozen on the Snapshot outside inputs. Duplicate Capture IDs and malformed references are refused before any ledger write. Distinct receipts for identical bytes remain distinct observations. None and empty references retain the existing no-reference behavior.
+
+Before every Worker attempt, including correction attempts, Ripley resolves the references and verifies receipt identity and stored bytes through the existing Capture verifier. It records a separate `capture_verification` after Task/Snapshot creation and before creating the execution attempt. Every reference is evaluated. A failed verification records an execution failure at stage `capture_verification`, blocks the Task and invokes no Worker for that boundary. There is no fallback.
+
+| Verification reason | Meaning |
+|---|---|
+| `receipt_missing` | The referenced receipt is absent. |
+| `receipt_wrong_kind` | The referenced record is not a Capture receipt. |
+| `receipt_hash_mismatch` | Receipt identity differs; artifact bytes are not inspected. |
+| `verified` | Receipt identity and artifact verification matched. |
+| `artifact_mismatched` | Stored bytes or size differ from the receipt. |
+| `artifact_unavailable` | Stored artifact verification is unavailable. |
+| `verification_error` | The artifact verifier raised an exception. |
+
+The task key remains unchanged and identifies the requested computation. An active task with the same key and different Capture references produces a `capture_reference_conflict` record and an explicit refusal. Equal canonical references retain the existing duplicate behavior. After a terminal task, a new submission may carry a different evidence context.
+
+Recovery preserves the original Snapshot's references and accepts no replacements. A recovery pre-check occurs before recovery authorization. A failed pre-check is recorded without consuming authorization or creating a recovered Task. A passing pre-check writes nothing, and every later Worker boundary verifies freshly again. An earlier MATCHED observation is never reused as execution authority.
+
+Evidence pins every referenced Capture receipt and the successful verification record for the accepted attempt. Provider Workers refuse nonempty Capture references in Sprint 10 before duplicate writes, dispatch gating or execution.
+
+Sprint 10 proves that the declared Capture evidence was identified and verified at the execution boundary and bound into the Task evidence chain. It does not prove extraction or derivation correctness, source authenticity, truth of source declarations, or artifact availability at approval time. Approval checks ledger-record hashes without re-reading artifact bytes. See docs/decisions/sprint-10-adrs.md (ADR-012).
+
 ## Sprint 7 acceptance evidence
 
 | Evidence | Result |
@@ -77,6 +101,10 @@ Inspect `CaptureError.reason` for the failed step.
 ## Known limitations
 
 Remaining limitations:
+
+Capture references are not accepted on provider Workers.
+
+Approval verifies ledger-record hashes but does not reverify stored Capture bytes.
 
 **Sequential capture.** Capture is supported one at a time. Concurrent capture publication is unsupported, untested and unclaimed.
 

@@ -20,6 +20,7 @@ PARENT_CONTROL_RESERVE_SECONDS = 3.0
 MIN_SDK_TIMEOUT_SECONDS = 5.0
 MIN_PROVIDER_TIMEOUT_SECONDS = 10
 MAX_ROW_TEXT_CHARS = 24000
+MAX_CAPTURE_REFERENCES = 16
 
 
 # → blocked from submitted/validated is restart-only; gated by SQLiteLedger.transition
@@ -227,25 +228,40 @@ class IndependentValidator:
 
 
 class Ripley:
-    def __init__(self, ledger=None, validator=None, clock=None, *, _subprocess_wait=None):
+    def __init__(self, ledger=None, validator=None, clock=None, *, _subprocess_wait=None,
+                 capture_store=None):
         self._subprocess_wait = _subprocess_wait
+        self.capture_store = capture_store
         self.ledger = ledger if ledger is not None else Ledger()
         self.validator = validator if validator is not None else IndependentValidator()
         self.clock = clock if clock is not None else lambda: datetime.now(timezone.utc)
 
     def run(self, adapter, inputs, worker=None, allowed_workers=('mock-worker',),
-            correction_budget=1, execution='inline'):
+            correction_budget=1, execution='inline', *, capture_references=None):
         self._check_execution(execution)
         self._check_correction_budget(correction_budget)
         worker, spec = self._checked_worker(worker, allowed_workers)
         timeout = self._timeout(adapter)
         self._check_provider(spec, execution, timeout)
+        references = self._canonical_capture_references(capture_references)
+        if references and spec.kind == 'provider':
+            raise ValueError('capture references are not supported for provider workers')
+        if references and self.capture_store is None:
+            raise ValueError('capture store required')
         inputs = freeze(inputs)
         task_type = getattr(adapter, 'task_type', 'predict')
         task_key = content_hash({'domain_id': adapter.domain_id,
             'domain_version': adapter.version, 'task_type': task_type, 'inputs': inputs})
         existing = self.ledger.task_for_key(task_key)
         if existing is not None and self.ledger.task_state(existing.id) not in ('blocked', 'approved', 'rejected'):
+            prior_snapshot = self.ledger.records[existing.data['input_snapshot_id']]
+            prior_references = self._canonical_capture_references(
+                prior_snapshot.data.get('capture_references'))
+            if prior_references != references:
+                self.ledger.add('capture_reference_conflict', {'task_key': task_key,
+                    'task_id': existing.id, 'existing_capture_references': prior_references,
+                    'submitted_capture_references': references})
+                raise ValueError('capture_reference_conflict')
             self.ledger.add('duplicate_submission', {'task_key': task_key, 'task_id': existing.id})
             return self._run_return('duplicate_of_existing_task', task=existing)
         dispatch_authorization = None
@@ -253,7 +269,65 @@ class Ripley:
             dispatch_authorization = self._provider_dispatch_gate(task_key)
         return self._execute(adapter, inputs, worker, allowed_workers, correction_budget,
                              timeout, task_key, existing, execution=execution,
-                             dispatch_authorization_id=dispatch_authorization)
+                             dispatch_authorization_id=dispatch_authorization,
+                             capture_references=references)
+
+    @staticmethod
+    def _canonical_capture_references(references):
+        if references is None:
+            return ()
+        if not isinstance(references, (list, tuple)) or len(references) > MAX_CAPTURE_REFERENCES:
+            raise ValueError('invalid capture references')
+        canonical = []
+        seen = set()
+        for reference in references:
+            if not isinstance(reference, Mapping) or set(reference) != {'capture_id', 'receipt_hash'}:
+                raise ValueError('invalid capture references')
+            capture_id, digest = reference['capture_id'], reference['receipt_hash']
+            try:
+                valid_id = isinstance(capture_id, str) and str(uuid.UUID(capture_id)) == capture_id
+            except ValueError:
+                valid_id = False
+            if (not valid_id or not isinstance(digest, str) or len(digest) != 64
+                    or any(char not in '0123456789abcdef' for char in digest)):
+                raise ValueError('invalid capture references')
+            if capture_id in seen:
+                raise ValueError('duplicate capture reference')
+            seen.add(capture_id)
+            canonical.append({'capture_id': capture_id, 'receipt_hash': digest})
+        return freeze(sorted(canonical, key=lambda reference: reference['capture_id']))
+
+    def _capture_verification_data(self, task, snapshot, context, attempt_number):
+        from .capture import verify_capture
+
+        observations = []
+        for reference in snapshot.data['capture_references']:
+            receipt = self.ledger.records.get(reference['capture_id'])
+            observed_hash = digest = size = None
+            if receipt is None:
+                status, reason = 'UNAVAILABLE', 'receipt_missing'
+            elif receipt.kind != 'capture':
+                status, reason = 'UNAVAILABLE', 'receipt_wrong_kind'
+            else:
+                observed_hash = receipt.content_hash
+                if observed_hash != reference['receipt_hash']:
+                    status, reason = 'MISMATCHED', 'receipt_hash_mismatch'
+                else:
+                    digest, size = receipt.data.get('sha256'), receipt.data.get('size_bytes')
+                    try:
+                        status, _ = verify_capture(self.ledger, self.capture_store, receipt.id)
+                        reason = {'MATCHED': 'verified', 'MISMATCHED': 'artifact_mismatched',
+                                  'UNAVAILABLE': 'artifact_unavailable'}[status]
+                    except Exception:
+                        status, reason = 'UNAVAILABLE', 'verification_error'
+            observations.append({'capture_id': reference['capture_id'],
+                'expected_receipt_hash': reference['receipt_hash'],
+                'observed_receipt_hash': observed_hash, 'content_sha256': digest,
+                'size_bytes': size, 'status': status, 'reason': reason})
+        return {'task_id': task.id, 'snapshot_id': snapshot.id, 'context': context,
+                'attempt_number': attempt_number,
+                'passed': all(item['status'] == 'MATCHED' for item in observations),
+                'observations': tuple(observations)}
 
     @staticmethod
     def _check_execution(execution):
@@ -378,6 +452,9 @@ class Ripley:
         self._check_correction_budget(correction_budget)
         timeout = self._timeout(adapter)
         self._check_provider(spec, execution, timeout)
+        snapshot = self.ledger.records[task.data['input_snapshot_id']]
+        if snapshot.data.get('capture_references') and self.capture_store is None:
+            raise ValueError('capture store required')
         lineage = set()
         ancestor = task
         while True:
@@ -392,12 +469,16 @@ class Ripley:
             self.ledger.add('recovery_budget_exhaustion', {'task_id': task.id,
                 'lineage_root_id': ancestor.id, 'budget': 1, 'consumed': consumed})
             raise ValueError('recovery budget exhausted')
+        if snapshot.data.get('capture_references'):
+            precheck = self._capture_verification_data(task, snapshot, 'recovery_precheck', None)
+            if not precheck['passed']:
+                self.ledger.add('capture_verification', precheck)
+                raise ValueError('capture evidence not verified')
         replay_attempt_id = attempt.id if attempt else None
         authorization = self.ledger.add('recovery_authorization', {
             'blocked_task_id': task.id, 'interrupted_attempt_id': replay_attempt_id,
             'actor': actor, 'reason': reason, 'replay_policy_cited': 'safe',
             'resource_ceiling_cited': task.data['resource_ceiling']})
-        snapshot = self.ledger.records[task.data['input_snapshot_id']]
         outcome = self._execute(adapter, snapshot.data['inputs'], worker, allowed_workers,
                                 correction_budget, timeout, task.data['task_key'], current,
                                 replay_snapshot=snapshot, replay_attempt_id=replay_attempt_id,
@@ -407,7 +488,8 @@ class Ripley:
 
     def _execute(self, adapter, inputs, worker, allowed_workers, correction_budget,
                  timeout, task_key, existing, replay_snapshot=None, replay_attempt_id=None,
-                 recovers_task_id=None, execution='inline', dispatch_authorization_id=None):
+                 recovers_task_id=None, execution='inline', dispatch_authorization_id=None,
+                 capture_references=()):
         from .workers import spec_for
 
         spec = spec_for(worker.identity)
@@ -420,11 +502,15 @@ class Ripley:
             snapshot_data = {'domain_id': adapter.domain_id, 'inputs': inputs,
                 'observed_at': metadata['observed_at'], 'sources': metadata['sources'],
                 'data_quality': metadata['data_quality'], 'domain_version': adapter.version}
+            if capture_references:
+                snapshot_data['capture_references'] = capture_references
         else:
             snapshot_data = {name: replay_snapshot.data[name] for name in
                              ('domain_id', 'inputs', 'observed_at', 'sources',
                               'data_quality', 'domain_version')}
             snapshot_data['replays_snapshot_id'] = replay_snapshot.id
+            if 'capture_references' in replay_snapshot.data:
+                snapshot_data['capture_references'] = replay_snapshot.data['capture_references']
         snapshot = self.ledger.add('snapshot', snapshot_data)
         policy = getattr(adapter, 'replay_policy', None)
         policy = policy if policy in ('safe', 'no') else 'unknown'
@@ -445,7 +531,22 @@ class Ripley:
         validations = []
         reviews = []
         corrections = []
+        capture_verification = None
         for attempt_number in range(correction_budget + 1):
+            if snapshot.data.get('capture_references'):
+                capture_verification = self.ledger.add('capture_verification',
+                    self._capture_verification_data(task, snapshot, 'execution', attempt_number + 1))
+                if not capture_verification.data['passed']:
+                    failure = self.ledger.add('execution_failure', {'task_id': task.id,
+                        'stage': 'capture_verification', 'attempt_id': None,
+                        'capture_verification_id': capture_verification.id,
+                        'message': 'capture evidence not verified'})
+                    self.ledger.transition(task.id, 'running', 'blocked', 'ripley',
+                                           'capture_verification')
+                    return self._run_return('blocked_capture_verification', task=task,
+                        snapshot=snapshot, failure=failure, capture_verification=capture_verification,
+                        results=results, validations=validations, reviews=reviews,
+                        corrections=corrections)
             isolated = execution == 'subprocess'
             started_at = datetime.now(timezone.utc) if isolated else self.clock().astimezone(timezone.utc)
             deadline = started_at + timeout if timeout is not None else None
@@ -526,7 +627,8 @@ class Ripley:
                 self.ledger.transition(task.id, 'running', 'blocked', 'ripley', reason)
                 return self._run_return('blocked_' + stage, task=task, snapshot=snapshot,
                     attempt=attempt, result=result, failure=failure, late_result=late_result,
-                    results=results, validations=validations, reviews=reviews, corrections=corrections)
+                    results=results, validations=validations, reviews=reviews, corrections=corrections,
+                    capture_verification=capture_verification)
             if corrections:
                 request = corrections[-1]
                 previous = results[-2]
@@ -559,13 +661,20 @@ class Ripley:
                 self.ledger.transition(task.id, 'running', 'blocked', 'ripley', 'validation_failure')
                 return self._run_return('blocked_validation_failure', task=task,
                     snapshot=snapshot, attempt=attempt, result=result, failure=failure,
-                    results=results, validations=validations, reviews=reviews, corrections=corrections)
+                    results=results, validations=validations, reviews=reviews, corrections=corrections,
+                    capture_verification=capture_verification)
             if finding['passed']:
                 self.ledger.transition(task.id, 'running', 'validated', 'ripley', 'review accepted')
-                evidence = self.ledger.add('evidence', {'task_id': task.id, 'snapshot_id': snapshot.id,
+                evidence_data = {'task_id': task.id, 'snapshot_id': snapshot.id,
                     'result_id': result.id, 'validation_id': validation.id, 'review_id': review.id,
                     'hashes': {r.id: r.content_hash for r in
-                               (task, snapshot, result, validation, review)}})
+                               (task, snapshot, result, validation, review)}}
+                if capture_verification is not None:
+                    evidence_data['capture_verification_id'] = capture_verification.id
+                    evidence_data['hashes'][capture_verification.id] = capture_verification.content_hash
+                    evidence_data['hashes'].update({reference['capture_id']: reference['receipt_hash']
+                        for reference in snapshot.data['capture_references']})
+                evidence = self.ledger.add('evidence', evidence_data)
                 approval = self.ledger.add('approval', {'evidence_id': evidence.id,
                     'evidence_hash': evidence.content_hash, 'task_id': task.id,
                     'result_hash': result.content_hash,
@@ -575,7 +684,8 @@ class Ripley:
                 return self._run_return('pending_owner_approval', task=task,
                     snapshot=snapshot, attempt=attempt, result=result, validation=validation,
                     review=review, evidence=evidence, approval=approval,
-                    results=results, validations=validations, reviews=reviews, corrections=corrections)
+                    results=results, validations=validations, reviews=reviews, corrections=corrections,
+                    capture_verification=capture_verification)
             if attempt_number < correction_budget:
                 corrections.append(self.ledger.add('correction_request', {
                     'task_id': task.id, 'rejected_result_id': result.id,
@@ -590,7 +700,8 @@ class Ripley:
                 return self._run_return('blocked_budget_exhausted', task=task,
                     snapshot=snapshot, attempt=attempt, result=result, validation=validation,
                     review=review, blocked=blocked,
-                    results=results, validations=validations, reviews=reviews, corrections=corrections)
+                    results=results, validations=validations, reviews=reviews, corrections=corrections,
+                    capture_verification=capture_verification)
 
     def _observe_inline(self, worker, task, snapshot, adapter, deadline):
         try:
@@ -608,11 +719,12 @@ class Ripley:
     def _run_return(outcome, *, task, snapshot=None, attempt=None, result=None,
                     validation=None, review=None, evidence=None, approval=None,
                     failure=None, blocked=None, authorization=None, late_result=None,
-                    results=(), validations=(), reviews=(), corrections=()):
+                    results=(), validations=(), reviews=(), corrections=(), capture_verification=None):
         return {'outcome': outcome, 'task': task, 'snapshot': snapshot, 'attempt': attempt,
                 'result': result, 'validation': validation, 'review': review,
                 'evidence': evidence, 'approval': approval, 'failure': failure, 'blocked': blocked,
                 'authorization': authorization, 'late_result': late_result,
+                'capture_verification': capture_verification,
                 'results': tuple(results), 'validations': tuple(validations),
                 'reviews': tuple(reviews), 'corrections': tuple(corrections)}
 
