@@ -11,6 +11,10 @@ WorkerSpec = namedtuple('WorkerSpec', 'identity kind response_envelope_version e
 # Preserve the immutable namedtuple descriptors. freeze() deliberately converts
 # sequences into plain tuples, so freeze their nested metadata individually.
 WORKER_SPECS = MappingProxyType({
+    'line-reader': WorkerSpec('line-reader', 'reader', '1', 'no external calls',
+                             False, None, None, None, None),
+    'test-reader-worker': WorkerSpec('test-reader-worker', 'reader', '1', 'no external calls',
+                                    False, None, None, None, None),
     'mock-worker': WorkerSpec('mock-worker', 'local', '1', 'no external calls',
                             True, None, None, None, None),
     'test-behavior-worker': WorkerSpec('test-behavior-worker', 'local', '1', 'no external calls',

@@ -13,6 +13,7 @@ MAX_OBSERVATIONS = 64
 MAX_CITATIONS = 8
 MAX_CITATION_BYTES = 4096
 PRODUCER_KINDS = ('fixture', 'human')
+_WORKER_PRODUCER_KIND = 'worker'
 NOTICE = ('Grounding shows only that each cited quote exists at the cited bytes of '
           'the captured source. It does not show that the interpretation is correct, '
           'that the source is authentic or truthful, or that anything is approved.')
@@ -53,7 +54,7 @@ def _identifier(value, maximum, colon=False):
     return _string(value, 1, maximum) and _re.fullmatch(pattern, value) is not None
 
 
-def _schema(proposal):
+def _schema(proposal, producer_kinds=PRODUCER_KINDS):
     if type(proposal) is not dict or set(proposal) != {
             'proposal_version', 'snapshot_id', 'producer', 'observations'}:
         return False
@@ -63,7 +64,7 @@ def _schema(proposal):
         return False
     producer = proposal['producer']
     if (type(producer) is not dict or set(producer) != {'kind', 'identity'}
-            or type(producer['kind']) is not str or producer['kind'] not in PRODUCER_KINDS
+            or type(producer['kind']) is not str or producer['kind'] not in producer_kinds
             or not _identifier(producer['identity'], 128, colon=True)):
         return False
     observations = proposal['observations']
@@ -175,6 +176,10 @@ def _verdict(observation, sources):
 
 
 def ground_proposal(ledger, store_dir, proposal_bytes):
+    return _ground(ledger, store_dir, proposal_bytes, PRODUCER_KINDS)
+
+
+def _ground(ledger, store_dir, proposal_bytes, producer_kinds):
     if type(proposal_bytes) is not bytes:
         raise GroundingError('invalid_call')
     identity = {'proposal_sha256': _hashlib.sha256(proposal_bytes).hexdigest(),
@@ -193,7 +198,7 @@ def ground_proposal(ledger, store_dir, proposal_bytes):
         proposal = _decode_protocol_object(proposal_bytes)
     except (ValueError, RecursionError):
         return reject('proposal_not_json')
-    if not _schema(proposal):
+    if not _schema(proposal, producer_kinds):
         return reject('proposal_schema_invalid')
     identifiers = [observation['observation_id'] for observation in proposal['observations']]
     if len(set(identifiers)) != len(identifiers):

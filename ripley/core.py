@@ -26,7 +26,8 @@ MAX_CAPTURE_REFERENCES = 16
 # → blocked from submitted/validated is restart-only; gated by SQLiteLedger.transition
 ALLOWED_TRANSITIONS = {
     'submitted': {'running', 'blocked'},
-    'running': {'validated', 'blocked'},
+    'running': {'validated', 'blocked', 'awaiting_semantic_review'},
+    'awaiting_semantic_review': set(),
     'validated': {'pending_owner_approval', 'blocked'},
     'blocked': set(),
     'pending_owner_approval': {'approved', 'rejected'},
@@ -493,6 +494,8 @@ class Ripley:
         from .workers import spec_for
 
         spec = spec_for(worker.identity)
+        if spec.kind == 'reader':
+            raise ValueError('reader workers run only through run_reader')
         provider = spec.kind == 'provider'
         if spec.paid_correction_allowed is False:
             correction_budget = 0
@@ -766,3 +769,228 @@ class Ripley:
             supersedes=pending.id)
         self.ledger.transition(task_id, 'pending_owner_approval', decision, actor, reason)
         return approval
+
+    def run_reader(self, fields, capture_references, worker=None, allowed_workers=('line-reader',)):
+        from . import grounding, reasoning_envelope, isolation, reader, workers
+
+        worker = reader.LineReaderWorker() if worker is None else worker
+        worker, spec = self._checked_worker(worker, allowed_workers)
+        if spec.kind != 'reader':
+            raise ValueError('reader worker required')
+        letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+        field_chars = letters + '0123456789 _-'
+        if (not isinstance(fields, (list, tuple)) or not 1 <= len(fields) <= 32
+                or any(type(field) is not str or not 1 <= len(field) <= 64
+                       or field[0] not in letters or any(char not in field_chars for char in field)
+                       for field in fields) or len(set(fields)) != len(fields)):
+            raise ValueError('invalid reader fields')
+        references = self._canonical_capture_references(capture_references)
+        if not references:
+            raise ValueError('capture references required')
+        if self.capture_store is None:
+            raise ValueError('capture store required')
+        inputs = freeze({'fields': tuple(fields), 'sources': references})
+        task_key = content_hash({'domain_id': 'source-reading', 'domain_version': '1',
+                                 'task_type': 'read', 'inputs': inputs})
+        existing = self.ledger.task_for_key(task_key)
+        if existing is not None and self.ledger.task_state(existing.id) not in ('blocked', 'approved', 'rejected'):
+            self.ledger.add('duplicate_submission', {'task_key': task_key, 'task_id': existing.id})
+            return self._reader_return('duplicate_of_existing_task', task=existing)
+        metadata = reader.ReaderAdapter().snapshot_metadata(inputs)
+        snapshot = self.ledger.add('snapshot', {
+            'domain_id': 'source-reading', 'inputs': inputs, 'observed_at': metadata['observed_at'],
+            'sources': metadata['sources'], 'data_quality': metadata['data_quality'],
+            'domain_version': '1', 'capture_references': references})
+        task = self.ledger.add('task', {
+            'domain_id': 'source-reading', 'task_type': 'read', 'domain_version': '1',
+            'task_key': task_key, 'previous_task_id': existing.id if existing is not None else None,
+            'recovers_task_id': None, 'replay_policy': 'no', 'input_snapshot_id': snapshot.id,
+            'dependencies': [], 'allowed_workers': allowed_workers, 'expected_output': ('observations',),
+            'validation_requirements': ('grounding',), 'evidence_requirements': ('linked-records',),
+            'resource_ceiling': spec.external_calls, 'dispatch_policy': None, 'state': 'submitted'})
+        self.ledger.transition(task.id, 'submitted', 'running', 'ripley', 'execution started')
+        reported = {'task': task, 'snapshot': snapshot}
+
+        def finish(outcome):
+            return self._reader_return(outcome, **reported)
+
+        def block(stage, message=None, **extra):
+            attempt = reported.get('attempt')
+            reported['failure'] = self.ledger.add('execution_failure', {
+                'task_id': task.id, 'stage': stage, 'attempt_id': attempt.id if attempt else None,
+                'message': stage if message is None else message, **extra})
+            self.ledger.transition(task.id, 'running', 'blocked', 'ripley', stage)
+            return finish('blocked_' + stage)
+
+        verification = self.ledger.add('capture_verification',
+            self._capture_verification_data(task, snapshot, 'execution', 1))
+        reported['capture_verification'] = verification
+        if not verification.data['passed']:
+            return block('capture_verification', capture_verification_id=verification.id)
+        evidence = []
+        for reference in snapshot.data['capture_references']:
+            item, raw = grounding._capture_evidence(self.ledger, self.capture_store, reference)
+            if item['reason'] != 'verified':
+                return block('evidence_delivery', item['reason'], capture_id=reference['capture_id'])
+            evidence.append({'capture_id': reference['capture_id'],
+                'receipt_hash': reference['receipt_hash'], 'content_sha256': item['content_sha256'],
+                'size_bytes': item['size_bytes'], 'text': raw.decode('utf-8')})
+        input_bytes = sum(item['size_bytes'] for item in evidence) + len(canonical_json(inputs))
+        started_at = self.clock().astimezone(timezone.utc)
+        reservation = reasoning_envelope.open_attempt(self.ledger, snapshot.id, input_bytes, 0,
+                                                      clock=lambda: started_at)
+        if reservation.kind != 'reasoning_attempt':
+            return block('envelope_refused', reservation.data['reason'], reasoning_refusal_id=reservation.id)
+        reported['reasoning_attempt'] = reservation
+        deadline = datetime.fromisoformat(reservation.data['deadline_at'])
+        attempt = self.ledger.add('execution_attempt', {
+            'task_id': task.id, 'worker': worker.identity, 'attempt_number': 1,
+            'execution': 'subprocess', 'started_at': started_at.isoformat(),
+            'deadline_at': reservation.data['deadline_at'], 'replays_attempt_id': None,
+            'reasoning_attempt_id': reservation.id})
+        reported['attempt'] = attempt
+        packet = {'envelope_version': ENVELOPE_VERSION, 'attempt_id': attempt.id, 'task_id': task.id,
+                  'task_type': 'read', 'domain_id': 'source-reading', 'domain_version': '1',
+                  'worker_identity': worker.identity, 'inputs': inputs,
+                  'deadline_at': reservation.data['deadline_at'], 'evidence': evidence}
+        recorded = dict(packet, evidence=[{key: value for key, value in item.items() if key != 'text'}
+                                          for item in evidence])
+        self.ledger.add('execution_request', {'attempt_id': attempt.id, 'packet': recorded})
+        launch_at = self.clock().astimezone(timezone.utc)
+        remaining = deadline - launch_at
+        if remaining <= timedelta(0):
+            close = reasoning_envelope.close_attempt(self.ledger, reservation.id, 'failed', None, None,
+                                                      clock=lambda: launch_at)
+            reported['reasoning_close'] = close
+            reported['failure'] = self.ledger.add('execution_failure', {
+                'task_id': task.id, 'attempt_id': attempt.id, 'stage': 'timeout',
+                'message': 'deadline_expired_before_launch', 'declared_at': launch_at.isoformat(),
+                'deadline_at': attempt.data['deadline_at'], 'termination': None,
+                'reasoning_close_id': close.id})
+            self.ledger.transition(task.id, 'running', 'blocked', 'ripley', 'deadline_exceeded')
+            return finish('blocked_timeout')
+        observation = isolation.observe_subprocess(packet, deadline, remaining, self._subprocess_wait,
+                                                   spec.response_envelope_version)
+        output = None
+        if observation.result is not None:
+            output = observation.result['output']
+            reported['result'] = self.ledger.add('result', {
+                'task_id': task.id, 'attempt_id': attempt.id, 'input_snapshot_id': snapshot.id,
+                'worker': worker.identity, **observation.result, 'evidence': (), 'warnings': (),
+                'execution': 'deterministic', 'cost': 0})
+        completed_at = next((facts['completed_at'] for facts in (observation.result, observation.failure)
+                             if facts is not None and facts.get('completed_at') is not None), None)
+        closed_at = (datetime.fromisoformat(completed_at) if completed_at is not None
+                     else self.clock().astimezone(timezone.utc))
+        if observation.failure is None:
+            status, size, cost = 'completed', len(canonical_json(output)), 0
+        else:
+            termination = observation.failure.get('termination')
+            status = 'uncertain' if termination is not None and termination['exited'] is not True else 'failed'
+            size, cost = None, None
+        close = reasoning_envelope.close_attempt(self.ledger, reservation.id, status, size, cost,
+                                                  clock=lambda: closed_at)
+        reported['reasoning_close'] = close
+        if observation.failure is not None:
+            failure = self.ledger.add('execution_failure', {
+                'task_id': task.id, 'attempt_id': attempt.id, **observation.failure,
+                'reasoning_close_id': close.id})
+            reported['failure'] = failure
+            if observation.late_response is not None:
+                self.ledger.add('late_result', {'attempt_id': attempt.id, 'failure_id': failure.id,
+                    'worker_identity': observation.late_response['worker_identity'],
+                    'output': observation.late_response['output']})
+            stage = observation.failure['stage']
+            self.ledger.transition(task.id, 'running', 'blocked', 'ripley',
+                                   'deadline_exceeded' if stage == 'timeout' else stage)
+            return finish('blocked_' + stage)
+        if close.data['outcome'] != 'completed_within_limits':
+            return block('envelope_violation', reasoning_close_id=close.id)
+        if type(output) is not dict or set(output) != {'observations'} or type(output['observations']) is not list:
+            return block('reader_output_invalid')
+        producer = {'kind': 'worker', 'identity': spec.identity}
+        proposal_bytes = canonical_json({'proposal_version': 1, 'snapshot_id': snapshot.id,
+                                         'producer': producer, 'observations': output['observations']})
+        grounded = grounding._ground(self.ledger, self.capture_store, proposal_bytes, ('worker',))
+        if grounded.kind != 'grounding_validation':
+            return block('proposal_rejected', grounded.data['reason'], grounding_rejection_id=grounded.id)
+        reported['grounding_validation'] = grounded
+        proposal = self.ledger.records[grounded.data['proposal_id']]
+        reported['proposal'] = proposal
+        if grounded.data['outcome'] != 'evaluated':
+            return block('grounding_blocked', grounding_validation_id=grounded.id)
+        if all(item['verdict'] == 'not_grounded' for item in grounded.data['verdicts']):
+            return block('nothing_grounded', grounding_validation_id=grounded.id)
+        result = reported['result']
+        reported['reader_proposal'] = self.ledger.add('reader_proposal', {
+            'task_id': task.id, 'attempt_id': attempt.id, 'result_id': result.id,
+            'result_hash': result.content_hash, 'proposal_id': proposal.id,
+            'proposal_hash': proposal.content_hash, 'proposal_sha256': hashlib.sha256(proposal_bytes).hexdigest(),
+            'grounding_validation_id': grounded.id, 'grounding_validation_hash': grounded.content_hash,
+            'producer': producer, 'reasoning_attempt_id': reservation.id,
+            'reasoning_attempt_hash': reservation.content_hash, 'reasoning_close_id': close.id,
+            'reasoning_close_hash': close.content_hash, 'snapshot_id': snapshot.id,
+            'snapshot_hash': snapshot.content_hash})
+        self.ledger.transition(task.id, 'running', 'awaiting_semantic_review', 'ripley', 'grounded')
+        return finish('awaiting_semantic_review')
+
+    @staticmethod
+    def _reader_return(outcome, *, task=None, snapshot=None, capture_verification=None,
+                       reasoning_attempt=None, attempt=None, result=None, reasoning_close=None,
+                       failure=None, proposal=None, grounding_validation=None, reader_proposal=None):
+        return {'outcome': outcome, 'task': task, 'snapshot': snapshot,
+                'capture_verification': capture_verification, 'reasoning_attempt': reasoning_attempt,
+                'attempt': attempt, 'result': result, 'reasoning_close': reasoning_close,
+                'failure': failure, 'proposal': proposal, 'grounding_validation': grounding_validation,
+                'reader_proposal': reader_proposal}
+
+    def reader_chain(self, reader_proposal_id):
+        def answer(reason=None):
+            return {'outcome': 'broken' if reason else 'verified', 'reason': reason,
+                    'reader_proposal_id': reader_proposal_id}
+
+        keys = {'task_id', 'attempt_id', 'result_id', 'result_hash', 'proposal_id', 'proposal_hash',
+                'proposal_sha256', 'grounding_validation_id', 'grounding_validation_hash', 'producer',
+                'reasoning_attempt_id', 'reasoning_attempt_hash', 'reasoning_close_id',
+                'reasoning_close_hash', 'snapshot_id', 'snapshot_hash'}
+        if not isinstance(reader_proposal_id, str):
+            return answer('binding_unavailable')
+        binding = self.ledger.records.get(reader_proposal_id)
+        if binding is None or binding.kind != 'reader_proposal' or not isinstance(binding.data, Mapping) \
+                or set(binding.data) != keys:
+            return answer('binding_unavailable')
+        data, found = binding.data, {}
+        for name, kind in [('result', 'result'), ('proposal', 'proposal'),
+                           ('grounding_validation', 'grounding_validation'),
+                           ('reasoning_attempt', 'reasoning_attempt'),
+                           ('reasoning_close', 'reasoning_attempt_close'), ('snapshot', 'snapshot')]:
+            try:
+                record = self.ledger.records.get(data[name + '_id'])
+            except TypeError:
+                record = None
+            if record is None:
+                return answer(name + '_missing')
+            if record.kind != kind:
+                return answer(name + '_wrong_kind')
+            if record.content_hash != data[name + '_hash']:
+                return answer(name + '_hash_mismatch')
+            found[name] = record
+        try:
+            attempt = self.ledger.records.get(data['attempt_id'])
+            result, reservation, close = (found[name].data for name in
+                                           ('result', 'reasoning_attempt', 'reasoning_close'))
+            validation, proposal = found['grounding_validation'].data, found['proposal'].data
+            consistent = (attempt is not None and attempt.kind == 'execution_attempt'
+                and attempt.data['task_id'] == data['task_id']
+                and attempt.data['reasoning_attempt_id'] == data['reasoning_attempt_id']
+                and result['attempt_id'] == data['attempt_id'] and result['task_id'] == data['task_id']
+                and reservation['snapshot_id'] == data['snapshot_id']
+                and close['attempt_id'] == data['reasoning_attempt_id']
+                and close['attempt_hash'] == data['reasoning_attempt_hash']
+                and validation['proposal_id'] == data['proposal_id']
+                and validation['proposal_hash'] == data['proposal_hash']
+                and validation['snapshot_id'] == data['snapshot_id']
+                and proposal['proposal_sha256'] == data['proposal_sha256'])
+        except (KeyError, TypeError, AttributeError):
+            consistent = False
+        return answer(None if consistent else 'chain_link_mismatch')
