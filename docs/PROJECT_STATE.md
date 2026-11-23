@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-21, against main 4e10661 (PR #43).
+Last updated: 2026-11-23, against main 2a4d606 (PR #45).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -15,6 +15,8 @@ Cyrus Forge Systems builds durable engines meant to stay useful for many years, 
 - Design for extension. Build the minimum necessary foundation. Prove the foundation. Then add capability in controlled layers.
 - Build what we need. Earn complexity through evidence.
 - This repository is also the owner's engineering portfolio. The real process is documented as it happens, including failures and limitations.
+
+Owner direction, 2026-11-23 (ownership and commercial model): Ripley One and every Cyrus engine are proprietary Cyrus Forge Systems intellectual property. Current public visibility of this repository is temporary development, review and portfolio visibility, not the intended long-term commercial distribution model. The intended commercial model is that Cyrus Forge Systems retains ownership of its engines and may license engine use or capability to customers while Cyrus maintains and evolves the engine under the applicable commercial agreement. Licensing an engine does not inherently transfer ownership of Cyrus engine architecture, infrastructure, governance, construction methods or other proprietary Cyrus intellectual property. Commercial marketplace skills, if evaluated separately, are a different bounded product category and must not expose protected Cyrus engine internals. This direction is not authorization to change repository visibility, change licensing, commercialize Ripley One, publish a marketplace skill, contact a marketplace or begin a commercial workstream. Each of those requires a separate owner decision.
 
 Priority order (Doctrine v1, section 1): Security and Core Integrity; Health and Customer Protection; Reliability and Service Continuity; Failure Intelligence and Safe Recovery; Evolution and Modernization; Performance and Efficiency; Customer Extensibility.
 
@@ -103,8 +105,9 @@ Standing rules:
 - Timebox and accountability standard (owner-approved 2026-11-21). No phase, sprint or material workstream is released for implementation without: a target completion date; a reauthorization deadline; named milestones, each with an accountable owner; acceptance criteria; explicit non-goals; known dependencies; a midpoint checkpoint; a defined response to schedule variance; and quality gates that cannot be weakened to meet the date. A timebox is a maximum boundary, not a work quota. Finishing early is success. At the reauthorization deadline unfinished work stops and returns to the owner, who decides to continue, narrow, split, defer or cancel.
 - At most two material architecture correction rounds. A material disagreement that remains after the second goes to the owner through Copilot.
 - A newly discovered item enters an active sprint only if it is blocking now or a defect in current work. Anything else is deferred. Schedule pressure never authorizes weakening a test, bypassing review or a hard stop, relaxing evidence, widening agent authority or merging unverified work.
+- One complete, self-contained, hash-verified artifact per major handoff. The chair confirms an artifact is complete before asking the owner to relay it. The owner is not asked to reconstruct or splice messages from the models.
 
-## 6. Current state (as of 2026-11-21)
+## 6. Current state (as of 2026-11-23)
 
 Completed:
 - Phases 1 to 5 merged.
@@ -126,6 +129,9 @@ Completed:
 - Offline Infrastructure Phase Exit Record: docs/offline-infrastructure-phase-exit.md. The phase is accepted by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
 - Offline Infrastructure Phase accepted and closed by the owner's merge of PR #42 (main 4e278cb).
 - Governed Source Interpretation Phase, Sprint 1 (proposal contract and grounding validator, ADR-013) accepted, PR #43. Tests: Linux 285 run, 0 skips. Windows 285 run, 4 expected skips. Focused grounding tests 54 of 54. Twenty-nine mutation checks detected. Sprint 1 is closed when its closeout PR is reviewed and merged by the owner.
+- Governed Source Interpretation Phase, Sprint 1 closeout, PR #44.
+- Governed Source Interpretation Phase, Sprint 2 (semantic review record and bounded reasoning envelope, ADR-014 and ADR-015) accepted, PR #45. Tests: Linux 351 run, 0 skips. Windows 351 run, 4 expected skips. Semantic review 33 of 33; reasoning envelope 33 of 33. Fifty-two mutation checks detected.
+- Governed Source Interpretation Phase Exit Record: docs/governed-source-interpretation-phase-exit.md. Sprint 2 and the phase are closed by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
 
 Advisory CI:
 - One advisory Linux check runs on pull requests targeting main: pinned SDK verified, full suite in a disposable copy, red on any failure, error, skip, unexpected success or zero tests. It uses a read-only token and no secrets. It is not a merge gate; no branch protection is configured. It is not a network sandbox and does not run Windows.
@@ -147,14 +153,14 @@ Offline Infrastructure Phase exit gate (approved by the owner, 2026-11-20):
 7. A final repository phase-exit record states the evidence, limitations and deferred work, and the owner accepts the phase by merging it. SATISFIED BY THE OWNER'S MERGE of docs/offline-infrastructure-phase-exit.md.
 The Offline Infrastructure Phase was accepted and closed by the owner's merge of PR #42 on 2026-11-20. Acceptance is not production readiness, provider readiness or modeling readiness. The record is docs/offline-infrastructure-phase-exit.md.
 
-Current phase: Governed Source Interpretation Phase (Track A).
-- Purpose: prove that Ripley One can accept an untrusted proposal about captured evidence, deterministically establish whether the proposal is grounded in the exact captured bytes, route the grounded proposal to independent human semantic review, and preserve the complete evidence chain without granting the proposal-producing component authority to act.
-- Boundaries: offline; UTF-8 plain text first; human semantic reviewer first; no model required for phase exit; no provider call; no network; no tools; no parent/child work; no agent loop; no NFL work; orchestration native to Ripley; security, cost and governance controls deterministic.
-- Sprint numbering restarted at Sprint 1 for this phase.
-- Phase planning window: November 21 to 27, 2026. Phase reauthorization boundary: Monday, November 30, 2026, 6:00 PM Central.
-- Sprint 1 schedule: target Monday, November 23, 2026, 6:00 PM Central; reauthorization deadline Tuesday, November 24, 2026, 6:00 PM Central. Implementation was merged on Saturday, November 21, 2026, ahead of the target.
-- The phase is active. No Sprint 2 is selected or authorized. The next action is the chair's comparison of the phase exit gate with the evidence completed in Sprint 1; whether a Sprint 2 is needed is decided only after that. No work exists merely to fill an estimated sprint range.
-- The owner-approved phase exit gate is not restated in this file by this closeout. It is to be recorded here when the chair supplies its approved text.
+Governed Source Interpretation Phase (Track A) exit gate (approved by the owner):
+1. Proposal contract established. SATISFIED (ADR-013).
+2. Exact-byte grounding proven. SATISFIED (Sprint 1).
+3. Hostile and malformed inputs proven safe within the approved deterministic scope. SATISFIED (Sprint 1).
+4. Independent semantic-review boundary implemented and proven. SATISFIED (Sprint 2, ADR-014).
+5. Cost and execution envelope proven offline for the first reasoning-capable profile. SATISFIED (Sprint 2, ADR-015).
+6. Phase closeout accepted by owner merge. SATISFIED BY THE OWNER'S MERGE of docs/governed-source-interpretation-phase-exit.md.
+Sprint 2 and the Governed Source Interpretation Phase are formally closed by the owner's merge of the phase-exit record. Acceptance is not production readiness, provider readiness or modeling readiness. The phase ran offline on UTF-8 plain text with a human semantic reviewer and no model. Sprint numbering had restarted at Sprint 1 for the phase; it ended after two sprints. No Sprint 3 exists. No next phase is chosen and no next-phase work is authorized. The next action is a Phase Transition Round Table.
 
 Grounding capability (ADR-013):
 - Ripley One can take a hand-written proposal about captured text and decide, observation by observation, whether each cited quote exists at the cited bytes. A proposal is untrusted data. It binds to one Snapshot and may cite only the capture references already on that Snapshot; it cannot add evidence.
@@ -163,8 +169,21 @@ Grounding capability (ADR-013):
 - Mechanically grounded is not semantically reviewed or accepted. Grounding does not establish that an interpretation is correct, that a source is authentic or truthful, or that anything is approved.
 - It does not: include a source reader or a model-produced proposal; record a semantic-review decision; check a value against its quote; run inside the Core Task and Worker flow; use a provider, network, tool or agent; handle file types other than UTF-8 plain text; authenticate a reviewer's identity.
 
+Semantic review capability (ADR-014):
+- A human can record a semantic judgment about one grounding validation, bound to it by id and hash. Each eligible observation receives exactly one decision: acceptable, rejected or needs_clarification. The decision carries the observation's declared status and grounding verdict.
+- The producer identity is read from the proposal. The reviewer kind is human. A reviewer label equal to the producer label, without regard to case, is refused. One fixed, hash-pinned set of criteria applies and cannot be replaced by the producer or the reviewer.
+- A validation is reviewed once; a review is never edited or superseded. A refused review stores none of the supplied decisions.
+- A review changes no earlier record and creates no authority. acceptable is not approval.
+- It does not: authenticate anyone; detect one person using two labels; allow revision; provide a reviewer interface; run inside the Core Task and Worker flow.
+
+Reasoning envelope (ADR-015):
+- A two-step ledger gate for one future reasoning attempt. It executes nothing, and nothing uses it yet.
+- Fixed limits: 1 attempt per operation; 0 automatic retries; input at most 262,144 bytes; output at most 65,536 bytes; deadline 120 seconds; budget at most 500,000 micro-dollars. Actual paid authority is 0. No caller can pass a limit; each attempt pins the envelope hash and a copy of the limits.
+- A second attempt is refused. A failed, uncertain or never-closed attempt stays consumed, and consumption survives restart. Oversized output, a cost above the limit and a late close are recorded as violations.
+- It does not: call a model, provider, network, tool or Worker; terminate or cancel anything; authorize spending; measure the sizes or costs a host declares; have any field for children, fan-out, delegation, tools, provider or model. ADR-010 dispatch governance is separate and unchanged.
+
 Reviewed code baseline:
-The reviewed code baseline is main 4e10661c1bbd636695a718eb3c2bdadb78ebda58 (merge of PR #43), whose tree is identical to commit bdcfb03, which Claude reviewed. It supersedes aca9d4d. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
+The reviewed code baseline is main 2a4d606f0d0ae5a8c9ac3f265bd4e2b5a052cf44 (merge of PR #45), whose tree is identical to commit e32e831, which Claude reviewed. It supersedes 4e10661. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. A provider support case is open.
@@ -189,16 +208,19 @@ Known small items:
 - Exact payloads sent through long chat messages have been reformatted or truncated in transit. Prefer a hash-verified file through the approved shared Drive folder. Process recommendation only.
 - Capture references are not accepted on provider workers (ADR-012), and approval does not re-verify stored capture bytes. See docs/capture.md, "Known limitations".
 - Reference test runs need proxy variables unset; P6-14 depends on it. See docs/ci.md, "Local commands".
-- Grounding supports UTF-8 plain text only, does not check a value against its quote, and has no semantic-review record yet. See docs/grounding.md, "Known limitations".
+- Grounding supports UTF-8 plain text only and does not check a value against its quote. See docs/grounding.md, "Known limitations".
 - A hand-forged capture record that lacks expected fields could raise an error in grounding instead of producing a reason code. Not reachable through the current capture_file writer. Not scheduled.
+- Semantic review identities are labels, not authenticated identities; a validation is reviewed once with no revision. See docs/semantic-review.md.
+- The reasoning envelope runs nothing and nothing uses it yet; its deadline is detection only and its budget is synthetic accounting. See docs/reasoning-envelope.md.
 
 Owner decision needed:
-- Whether a Sprint 2 is needed in the Governed Source Interpretation Phase, and its scope. Decided only after the chair compares the phase exit gate with Sprint 1 evidence. Not chosen or authorized by this record. Items carried forward for that comparison, none authorized: a semantic-review record with reviewer independence; a read-only ledger status report; timing of the source-reader ADR.
+- Selection of the next phase, at a Phase Transition Round Table held after the Governed Source Interpretation Phase is accepted. Not chosen by this record, and no next-phase work is authorized. Candidates carried forward for that planning, none authorized: a bounded source reader as a model-backed Worker; running grounding, semantic review and the envelope inside the Core flow; a read-only ledger status report.
+- Repository visibility, licensing and any commercial workstream. Each requires a separate owner decision. None is made by the owner direction recorded in section 1.
 - Whether capture should ever acquire over a network. Blocked pending an owner decision on sources and a rights classification.
 - Whether and when the advisory check becomes a required check. Not decided.
 
 Next round-table topics:
-- Phase exit gate comparison after the Sprint 1 closeout.
+- Phase Transition Round Table (after phase acceptance).
 - Provider support reply on FI-001, when it arrives.
 - Timing of the source-reader ADR.
 
@@ -228,6 +250,9 @@ Next round-table topics:
 | 2026-11-20 | Sprint 10 closeout; Offline Infrastructure Phase Exit Record (phase accepted by the owner's merge of the record) | PR #41, docs/offline-infrastructure-phase-exit.md |
 | 2026-11-20 | Offline Infrastructure Phase accepted and closed by owner merge | PR #42 |
 | 2026-11-21 | Governed Source Interpretation Phase named; timebox and accountability standard adopted; Sprint 1 proposal contract and grounding validator, ADR-013 | PR #43, docs/grounding.md |
+| 2026-11-21 | Governed Source Interpretation Phase, Sprint 1 closeout | PR #44 |
+| 2026-11-23 | Sprint 2 semantic review record and bounded reasoning envelope, ADR-014 and ADR-015 | PR #45, docs/semantic-review.md, docs/reasoning-envelope.md |
+| 2026-11-23 | Governed Source Interpretation Phase Exit Record (Sprint 2 and the phase closed by the owner's merge of the record); owner direction on ownership and commercial model recorded | docs/governed-source-interpretation-phase-exit.md |
 
 ## 8. Future add-ons (ideas only)
 
@@ -273,7 +298,7 @@ Infrastructure candidates raised for Sprint 7 and later:
 |---|---|
 | The standard every engine inherits | docs/architecture/cyrus-engineering-doctrine.md |
 | Architecture and contracts | docs/architecture/phase-1.md, docs/architecture/contracts.md |
-| Decisions (ADR-001 to ADR-013) | docs/decisions/ |
+| Decisions (ADR-001 to ADR-015) | docs/decisions/ |
 | Owner authorizations for live actions | docs/decisions/phase-6d-*.md |
 | Phase write-ups | docs/phase-2-skeleton.md through docs/phase-6-provider-worker.md |
 | Live pilot and preflight records | docs/pilot/ |
@@ -284,6 +309,9 @@ Infrastructure candidates raised for Sprint 7 and later:
 | Advisory CI check | docs/ci.md, .github/workflows/tests.yml, .github/scripts/ci_tests.py |
 | Offline Infrastructure Phase exit record | docs/offline-infrastructure-phase-exit.md |
 | Proposal grounding | docs/grounding.md, docs/decisions/source-interpretation-sprint-1-adrs.md |
+| Semantic review | docs/semantic-review.md, docs/decisions/source-interpretation-sprint-2-adrs.md |
+| Reasoning envelope | docs/reasoning-envelope.md, docs/decisions/source-interpretation-sprint-2-adrs.md |
+| Governed Source Interpretation Phase exit record | docs/governed-source-interpretation-phase-exit.md |
 
 ## 10. Keeping this file current
 
