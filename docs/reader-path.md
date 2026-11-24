@@ -190,3 +190,98 @@ Target: Wednesday, November 25, 2026, 6:00 PM Central. Reauthorization deadline:
 
 **One improvement to carry forward**
 Before an architecture draft is released, check every statement that an earlier ADR is unchanged against that ADR's numbered decisions, and recount every stated total after any correction round.
+
+## Sprint 2 — release and owner approval (ADR-017)
+
+This section supersedes the earlier Sprint 1 statements that `awaiting_semantic_review` has no exit and that no release to approval exists. Reader production is unchanged. Five acts remain distinct: the reader proposes; grounding checks the evidence; an independent human records a semantic review; a separately invoked Core release determines eligibility; the owner separately approves or rejects. Semantic acceptability is not owner approval, and release creates no owner verdict.
+
+### Releasing a reviewed reader proposal
+
+Given an existing reader binding and its ADR-014 semantic review:
+
+```python
+released = ripley.release_reader(
+    binding.id, binding.content_hash,
+    review.id, review.content_hash,
+    'Release.Clerk')
+```
+
+Core verifies the binding's identity and hash, the ADR-016 chain, the reader Task, the review's identity and hash, and its exact validation, proposal and Snapshot relationships. It checks the fixed review criteria, agreement on producer identity, a human reviewer label different from the producer without regard to case, nonempty eligible observations, exact ordered decision coverage with preserved statuses and grounding verdicts, and exactly one semantic review of that validation. The caller supplies no observation IDs or eligibility flag.
+
+The disposition is `eligible` when all decisions are acceptable; `rejected` when any is rejected; otherwise `needs_clarification` when any requires clarification. Rejection takes precedence. Both negative dispositions block the Task without creating a pending approval. Semantic rejection is not owner rejection. There is no clarification state, revision loop, second review or automatic reread.
+
+Core derives four lists in proposal order:
+
+| List | Meaning |
+|---|---|
+| included_observation_ids | Every eligible observation when disposition is eligible; empty otherwise |
+| uncertain_observation_ids | Included observations declared uncertain |
+| not_found_observation_ids | Included observations declared not found |
+| excluded_observation_ids | Every observation whose grounding verdict is not_grounded |
+
+Excluded observations stay visible and unapproved. Uncertainty stays visible in the proposal, grounding, semantic review, release, pending approval and judgment. No status is upgraded.
+
+### Separate owner decision
+
+An eligible release returns a pending approval with status `pending_reader_owner_approval`; the Task state is `pending_owner_approval`. Only after the owner has inspected the bounded package does a separate explicit command record the decision:
+
+```python
+judgment = ripley.decide_reader_approval(
+    released['approval'].id, 'owner', 'approved',
+    'I approve the reviewed eligible observations in this package.')
+```
+
+The owner may instead explicitly choose `rejected`. The actor must be exactly `owner`, the decision `approved` or `rejected`, and the reason a nonblank string. The legacy `decide_approval` remains unchanged and refuses reader pending approvals and judgments by its explicit status check. The reader method likewise refuses legacy pending approvals. Neither route relies on accidentally missing fields.
+
+Before recording a judgment, Core derives all release facts again from the pinned ledger records. It requires eligible disposition, exact equality of the stored release facts and the pending scope lists, the pinned release hash, exactly one release for the Task and exactly one reader pending approval for that release. A stored eligible flag is insufficient. This checks ledger evidence, not captured bytes, and invokes no reader.
+
+### Immutable records and refusal reasons
+
+Every ledger record has record-level `id`, `kind`, `at`, `data`, `supersedes` and `content_hash` fields. The key counts below describe `data`. Supersession is not a data key; the record hash covers it.
+
+`reader_release` has fifteen data keys: `task_id`, `reader_proposal_id`, `reader_proposal_hash`, `semantic_review_id`, `semantic_review_hash`, `producer_identity`, `reviewer_identity`, `released_by`, `disposition`, `included_observation_ids`, `uncertain_observation_ids`, `not_found_observation_ids`, `excluded_observation_ids`, `rejected_observation_ids`, `clarification_observation_ids`.
+
+The pending record has kind `approval`, record-level `supersedes=None`, and exactly nine data keys: `task_id`, `release_id`, `release_hash`, `authority`, `status`, and the four scope-list keys. Authority is `owner` and status is `pending_reader_owner_approval`.
+
+The judgment also has kind `approval`. Its data is the pending's data with authority `owner`, status `approved` or `rejected`, and the additional `reason`: exactly ten keys. Its record-level `supersedes` names that exact pending approval. No `supersedes` key is placed in the data. The Task moves from pending to the chosen terminal state.
+
+A release integrity refusal writes only `reader_release_refusal`, with exactly `reader_proposal_id`, `semantic_review_id`, `released_by` and `reason`, and leaves the Task state unchanged. Its twenty reasons are:
+
+- `binding_unavailable`
+- `binding_hash_mismatch`
+- `chain_broken`
+- `task_unavailable`
+- `semantic_review_missing`
+- `semantic_review_wrong_kind`
+- `semantic_review_hash_mismatch`
+- `semantic_review_wrong_validation`
+- `semantic_review_wrong_proposal`
+- `semantic_review_wrong_snapshot`
+- `criteria_mismatch`
+- `producer_mismatch`
+- `reviewer_invalid`
+- `reviewer_is_producer`
+- `no_eligible_observations`
+- `decision_coverage_invalid`
+- `semantic_review_conflict`
+- `semantic_review_malformed`
+- `task_not_awaiting_review`
+- `release_conflict`
+
+The release call returns `outcome`, `release`, `approval`, `refusal` and `task_state`. Owner-decision refusals raise `ValueError` without writing anything.
+
+### Write order, repeats and interruption
+
+An eligible release writes the release record, then the pending approval, then the Task transition last. A negative release writes the release record and then the blocked transition. An owner decision writes the superseding judgment and then its Task transition.
+
+An interrupted release grants no decision authority while the Task remains awaiting review. An identical repeat completes the missing writes without duplicating a release or pending approval. A different actor may repeat a release; the original `released_by` stays recorded. A different binding or review for an already released Task is refused. Repeating a completed release returns the existing records and current Task state.
+
+If the judgment exists but its transition was interrupted, repeating that decision reuses the judgment and its original reason and adds only the missing transition. An opposite decision is refused. Repeating after the transition writes nothing. No generic transaction or idempotency framework is added. A blocked Task is terminal; a person's new reader submission under ADR-016 remains a separate operation, unchanged.
+
+### What approval means and does not mean
+
+The owner approves the exact reviewed eligible observation set identified by the release record as an acceptable reading of the captured evidence. Excluded observations are not approved. Approval does not erase uncertainty, establish real-world truth or source authenticity, or make a not-found declaration proof of real-world absence. Nothing follows from approval in this phase: it authorizes no downstream execution or action.
+
+Labels are not authenticated identities, and one person can use two labels. The ledger transition table is not an authority boundary against code inside the process, which can append records and transitions directly. A Task moved without a release has nothing that can be decided; a hand-built package is decidable only when every release fact equals what Core derives from the evidence.
+
+Release and owner decision create no Task, Snapshot, Worker attempt or envelope reservation. They launch nothing and do not reread Capture bytes. No model, provider, network, tool, agent, child, delegation or Track B capability is added. Any consumer of an approved reading requires its own decision.
