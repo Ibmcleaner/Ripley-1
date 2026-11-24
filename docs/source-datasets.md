@@ -125,3 +125,34 @@ No Task yet accepts a source dataset; there is no consumer, model, agent, provid
 The local reference validator mirrors ADR-012. **Any future change to the accepted Capture-reference contract requires a coordinated review of Source Dataset validation.**
 
 Windows acceptance results, and any later independent review results, belong in the separate sprint closeout; none are claimed here.
+
+## Using a source dataset with the governed reader
+
+No Task accepts a source dataset. A caller can still run the existing governed reader over a source dataset's evidence, using only existing operations:
+
+1. Call `verify_source_dataset(ledger, store_dir, dataset_id)`. If the outcome is not `verified`, stop and start nothing.
+2. Take each member's `capture_id` and `receipt_hash` from the result.
+3. Pass those references to the existing reader entry point, `Ripley.run_reader(fields, capture_references)`.
+
+The reader stores the same references, in the same canonical order, on the run's Snapshot. After a restart, the Snapshot's capture references can be compared with the source dataset's members, and the membership identity can be recomputed from the Snapshot's references with the formula above.
+
+What the persisted records then establish:
+
+| Claim | Established? |
+|---|---|
+| A successful governed reader run consumed exactly these Capture references | Yes, when supported by its Snapshot and execution evidence; a Snapshot alone does not establish consumption |
+| Those references have membership identity X | Yes |
+| A source dataset record with identity X exists | Only as of the moment someone checks; not as of the run |
+| That record verified before the run | No |
+| The caller selected that record | No |
+| The caller was permitted to use the source material | No |
+
+Limits, stated plainly:
+
+- A Snapshot records the input membership only. A task can hold a Snapshot and then be blocked at Core's capture verification or at evidence delivery, before the reader runs. Consumption is established only together with the run's execution evidence: Core's capture verification, the evidence delivery, and a successful governed reader execution.
+- Nothing persisted names a source dataset on a run. There is no dataset-to-run binding. A source dataset created after a run matches that run's evidence equally well.
+- Equal evidence is not proof of selection, of timing, or of permission.
+- The check in step 1 confirms that the dataset exists, is well formed and is unambiguous. It is not persisted, it is not authoritative, and it is not what protects the evidence. On the new-execution path, Core verifies every referenced capture itself before the reader is launched, and blocks the task if one fails. A call that returns as a duplicate of an active task launches no reader, performs no fresh capture verification and establishes no fresh evidence consumption.
+- The reader's task identity already covers the capture references. A run started this way and a run given the same references by hand, with the same fields, have the same task identity; while the first is still active, the second is reported as a duplicate of it.
+
+This pattern is pinned by tests/test_dataset_reader_composition.py. It adds no runtime code, no record kind and no authority.
