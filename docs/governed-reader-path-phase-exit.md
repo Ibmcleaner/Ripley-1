@@ -4,7 +4,7 @@ Prepared: 2026-11-23. Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 ## 1. Status of this record
 
-This record is published in a Draft pull request and independently reviewed before the owner decides. It is also the Sprint 2 closeout. It becomes the formal closure of Sprint 2 and the formal acceptance of the Governed Reader Path Phase only by the owner's merge of that pull request into main. This file exists on main only if the owner merged it; in that case the merge commit is the acceptance.
+This record was published in a Draft pull request, PR #50. The intended process is independent review before the owner decides. For PR #50 that order was not followed: the owner merged first and the independent review followed. Section 14 records what happened. It is also the Sprint 2 closeout. It becomes the formal closure of Sprint 2 and the formal acceptance of the Governed Reader Path Phase only by the owner's merge of that pull request into main. This file exists on main only if the owner merged it; in that case the merge commit is the acceptance.
 
 Completing this phase is not production readiness, not provider readiness and not modeling readiness. It authorizes no model, provider activity, network use, tool, agent, child, delegation, Sprint 3, next phase, Phase 6E, Dispatch #3, Track B work, new source format, authentication project, consumer of approved readings, commercial work, or change of repository visibility or licensing.
 
@@ -213,3 +213,31 @@ Before a Windows gate, confirm the pinned provider SDK is installed, and treat a
 ## 13. What follows
 
 By the owner's merge of this record, Sprint 2 is closed and the Governed Reader Path Phase is accepted and closed. That merge authorizes nothing further. No Sprint 3 exists. No next phase is chosen. The next action is a Phase Transition Round Table. Every capability in section 11 requires its own decision.
+
+## 14. Record of the review sequence for this record
+
+This section was added after the merge, by a separate reviewed correction. It changes no engineering evidence and no exit-gate result.
+
+What happened:
+1. This record was published as PR #50 at head 85caf680237b1843f775239ffd464a0670b8c5d4, on the baseline faeabd3569c0241032f27b452c547fc74c67d33a.
+2. The owner merged PR #50 on 2026-11-23 at 11:19 PM Central, as b880fa47c6f1743d7fd03f4ba1528ae84ba88375, before the planned independent closeout review had been performed.
+3. Claude then performed the independent review as a post-merge reconciliation against the exact merged state.
+
+What the post-merge reconciliation verified:
+- Lineage: the head is one commit on the authorized baseline; main is the merge of that head; the merged tree is identical to the head.
+- Scope: exactly four documentation files, one of them new; the other 78 baseline files byte-identical.
+- The literal command git diff --check, baseline to head: no output, exit code 0.
+- This record is identical to the assigned text apart from the one authorized implementer line; the other three files carry exactly the assigned edits.
+- Every evidence identity, test count and mutation count in this record against the repository and Claude's own evidence.
+- Full Linux suite on merged main, Python 3.13 with anthropic 2.9.0, proxy variables unset: 428 run, 0 failures, 0 errors, 0 skipped.
+- The seven exit-gate conditions, and the disposition of the known bounded item in section 9.
+
+Result: no blocking technical, evidentiary, scope or phase-gate defect was found.
+
+Supplement to section 8. After the merge Claude read the public pages of the two PR #49 hosted runs named there, 45317365557 and 45319402229. Each shows Success for pull request #49 on the stated commit. Their log lines remain implementer-reported. Claude was not given a hosted run identifier for PR #50 and did not observe one; that gap is recorded as nonblocking, because the merged tree was independently verified and the full suite passed on it.
+
+Owner rulings recorded with this correction: the ADR-017 acceptance date of 2026-11-23 is confirmed; the disposition of the known bounded item in section 9 is final for this closed phase.
+
+The deviation. Merging before the independent review was a departure from the project's intended process of independent review before owner merge. It is recorded here, not concealed. It does not change the accepted engineering evidence or the exit-gate result. Sprint 2 and the phase remain closed by the merge named above; this section is not a second closure.
+
+Rule carried forward. A pull request requiring independent review must not be owner-merged until the independent-review verdict is present in the active owner handoff. If an owner merge occurs before that verdict, the variance must be explicitly recorded and independently reconciled before project advancement.
