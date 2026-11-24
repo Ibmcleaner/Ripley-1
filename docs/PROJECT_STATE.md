@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-24, against main 5d7d592 (PR #51).
+Last updated: 2026-11-24, against main 8a3c331 (PR #53).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -141,6 +141,10 @@ Completed:
 - Governed Reader Path Phase Exit Record: docs/governed-reader-path-phase-exit.md. Sprint 2 and the phase are closed by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
 - Governed Reader Path Phase accepted and closed by the owner's merge of PR #50 (main b880fa4). PR #50 was merged before the planned independent review; Claude's post-merge reconciliation found no blocking defect.
 - Governance correction of the phase exit record, PR #51 (main 5d7d592): records the PR #50 review order and the review-before-merge rule. Reviewed before merge. See docs/governed-reader-path-phase-exit.md, section 14.
+- Project state synchronized after the reader phase closeout, PR #52 (main a7e1598). Documentation only.
+- Phase Transition Hold released by the owner on 2026-11-24. The owner approved a two-layer data architecture (Layer 1 source dataset; Layer 2 interpreted dataset), directed that Layer 1 be proven first, and selected the Source Dataset Provenance Phase.
+- Source Dataset Provenance Phase, Sprint 1 (immutable source membership, ADR-018) accepted, PR #53 (main 8a3c331). Tests: Linux 450 run, 0 skips. Windows 450 run, 4 expected skips (owner-reported). Focused source dataset tests 22 of 22. Thirty mutation checks detected on both ledgers under the owner-approved revised SM19; the original SM19 survived because of a mutation-specification defect, and the production code was not changed.
+- Source Dataset Provenance Phase Exit Record: docs/source-dataset-provenance-phase-exit.md. Sprint 1 and the phase are closed by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
 
 Advisory CI:
 - One advisory Linux check runs on pull requests targeting main: pinned SDK verified, full suite in a disposable copy, red on any failure, error, skip, unexpected success or zero tests. It uses a read-only token and no secrets. It is not a merge gate; no branch protection is configured. It is not a network sandbox and does not run Windows.
@@ -201,12 +205,20 @@ Governed Reader Path Phase (Track A) exit gate (approved by the owner, 2026-11-2
 7. Phase closeout accepted by owner merge. SATISFIED BY THE OWNER'S MERGE of docs/governed-reader-path-phase-exit.md.
 Sprint 2 and the Governed Reader Path Phase are formally closed by the owner's merge of the phase-exit record. Acceptance is not production readiness, provider readiness or modeling readiness. The phase ran offline on UTF-8 plain text with a deterministic reader, a human semantic reviewer and a human owner, and no model. It ended after two sprints, both merged on Monday, November 23, 2026, ahead of the phase target of Friday, December 4, 2026. No Sprint 3 exists. No next phase is chosen and no next-phase work is authorized. The phase was accepted and closed by the owner's merge of PR #50 on 2026-11-23. A Phase Transition Round Table follows only when the owner releases the Phase Transition Hold described below.
 
-Phase Transition Hold: ACTIVE (set by the owner, 2026-11-23).
-- Sprint 1, Sprint 2 and the Governed Reader Path Phase are closed. The current next action is the owner's decision on the Phase Transition Hold. A closed phase does not start the next one.
-- No Sprint 3 is authorized. No next phase is selected or authorized. No new capability work is authorized.
-- No Phase Transition Round Table, next-phase planning, architecture assignment or capability work begins until Robert explicitly releases the hold.
-- An instruction from the chair or from any AI is not a release. Only Robert's own statement is.
-- This entry is corrected at the first state update after the hold is released. Until then, treat the hold as active.
+Phase Transition Hold: RELEASED (by the owner, 2026-11-24).
+- The owner released the hold for a Phase Transition Round Table and then selected the Source Dataset Provenance Phase. That phase has one sprint, and its closure is recorded below.
+- A closed phase does not start the next one. No Sprint 2 is authorized. No next phase is selected or authorized. Layer 2 is deferred and is not automatically next.
+- Only Robert's own statement selects a phase, or sets or releases a hold. An instruction from the chair or from any AI does not.
+
+Source Dataset Provenance Phase (Track A) exit gate (set in the reconciled planning artifact, 2026-11-24):
+1. Necessity: a new record is justified by a capability existing mechanisms do not provide. SATISFIED (ADR-018).
+2. Identity: exact immutable membership has a deterministic canonical identity. SATISFIED (Sprint 1).
+3. Integrity: every member verified through existing mechanisms; bad membership and malformed stored records fail closed. SATISFIED (Sprint 1).
+4. Persistence: a SQLite close and reopen reconstructs the same membership and identity. SATISFIED (Sprint 1).
+5. Authority: no Task, Snapshot, Worker, approval, model, provider or network operation is created. SATISFIED (Sprint 1).
+6. Regression: existing behavior stays green and frozen. SATISFIED; no existing code or test changed.
+7. Closeout accepted by owner merge after independent review. Satisfied only by the owner's merge of docs/source-dataset-provenance-phase-exit.md after independent review; that file exists on main only if the owner merged it.
+Sprint 1 and the Source Dataset Provenance Phase are formally closed by the owner's merge of the phase-exit record. Acceptance is not production readiness, provider readiness or modeling readiness. The phase ran offline on synthetic UTF-8 text with no model. Layer 1 is established. Layer 2 is deferred. Two owner-approved variances (the SM19 mutation specification, and the timing of Linux evidence) are recorded in the exit record, section 9.
 
 Reader path capability (ADR-016):
 - Core has one reader entry point. A first-party deterministic Worker, run in the existing isolated process, is given the verified text of the captures on its Snapshot and returns observations: each requested "Field: value" line, or not found. It makes no judgment and holds no authority.
@@ -225,14 +237,21 @@ Reader release and owner approval (ADR-017):
 - Approval means the owner accepts the exact reviewed eligible observation set as an acceptable reading of the captured evidence. It authorizes no downstream action.
 - It does not: authenticate any label; provide a clarification or revision path; give an approved reading any consumer; launch a reader, reserve an attempt or reread captured bytes.
 
+Source dataset, Layer 1 (ADR-018):
+- Ripley One can record an exact membership of capture receipts as one immutable ledger record, source_dataset, independently of any Task. The record has three data keys: contract_version, membership_sha256 and members. Members are 1 to 16 capture references in the ADR-012 shape, in ascending capture_id order.
+- membership_sha256 is the dataset identity. Identical membership always gives the same value. The ledger record id is not the dataset identity. Two captures of byte-identical files are different members.
+- Creation verifies every member, all-or-nothing, and on a repeat returns the existing record without writing. Verification is read-only and rebuilds its answer from ledger records and stored bytes.
+- A verified Source Dataset is an integrity result, not a trust, quality, approval, interpretation, availability-time, consent, or fitness-for-use result.
+- It does not: have any consumer (no Task accepts a source dataset); carry a name, a time, lineage or retraction; make an "as of T" claim; guarantee uniqueness under concurrent writers; resolve ambiguity automatically (any second record claiming the same membership hash needs manual inspection); allow more than 16 members; use a model, provider, network, tool or agent; touch Layer 2. See docs/source-datasets.md.
+
 Reviewed code baseline:
-Main is 5d7d59259401b6c741ff065833fa4eec459545c6 (merge of PR #51). The reviewed code is that of faeabd3569c0241032f27b452c547fc74c67d33a (merge of PR #49), whose tree is identical to commit ac2f345, which Claude reviewed; PR #50 and PR #51 changed documentation only. It supersedes 1374b2f. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
+Main is 8a3c331df61067e0338809f298d2a882ba53993d (merge of PR #53). Its tree is identical to commit 71b2f59, which Claude reviewed. It supersedes faeabd3 (merge of PR #49) as the reviewed code baseline; PR #50, PR #51 and PR #52 changed documentation only. Against a7e1598 it adds ripley/datasets.py and tests/test_source_dataset.py and changes no existing code or test. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
 
 Blocked:
-- Live dispatch #3 is paused and NOT authorized. A provider support case is open.
+- Live dispatch #3 is paused and NOT authorized. Provider support replied on 2026-11-24: it could not retrieve the error text or confirm the cause. Live replay is not authorized.
 - Two authorized live dispatches have been used. Neither produced model output (#1 auth_rejected, since remediated; #2 HTTP 400).
 - Phase 6E has not started.
-- The cause of the HTTP 400 (FI-001) is unconfirmed. An architecture review by Claude found no evidence that it has a context, memory or retrieval cause. FI-001 alone is not a reason to add retrieval, vector storage or caching.
+- The cause of the HTTP 400 (FI-001) is unconfirmed. The historical schema defect is proven against the provider's documented rules; its repair is verified offline and untested live. The available FI-001 evidence does not establish a context, memory or retrieval cause. FI-001 alone is not a reason to add retrieval, vector storage or caching. FI-001 is separate from the Source Dataset Provenance Phase.
 
 Frozen by owner direction:
 - Provider request, prompt, model, schema and dispatch logic.
@@ -260,9 +279,11 @@ Known small items:
 - The line reader reports a matching line longer than 4,096 bytes as not found. As specified. Not scheduled.
 - A hand-added, malformed approval record with the reader pending status makes decide_reader_approval raise KeyError or TypeError where the contract says ValueError. Nothing is written; Core never writes such a record. Known bounded item; future hardening; not blocking; not scheduled. No correction is authorized, and the owner's disposition is final for the closed phase. See docs/governed-reader-path-phase-exit.md, section 9.
 - A Windows gate must be run with the pinned provider SDK installed; without it 39 provider tests are skipped and the gate is not met. One Sprint 2 Windows run reported 43 skips for that reason and was not acceptance evidence; the accepted run was 428 with 4 expected skips. Confirm the pinned SDK before every Windows gate; any skip count other than the expected one is a gate failure until explained.
+- A source dataset has no consumer, at most 16 members, sequential single-writer uniqueness only, and no name, time, lineage or retraction; ambiguity can be induced by a stray record and needs manual inspection. Accepted limits. See docs/source-datasets.md and docs/source-dataset-provenance-phase-exit.md, section 10.
+- Before a mutation matrix is released, each mutation must be checked against the code path the same assignment prescribes. One Sprint 1 mutation (SM19) was undetectable as written. See docs/source-dataset-provenance-phase-exit.md, section 9.
 
 Owner decision needed:
-- Release of the Phase Transition Hold. Only after that, selection of the next phase at a Phase Transition Round Table. No next phase is chosen and no next-phase work is authorized. The deferred items and their classifications are in docs/governed-reader-path-phase-exit.md, section 11; none is authorized.
+- Selection of the next phase. The Source Dataset Provenance Phase is closed and a closed phase does not start the next one. No next phase is chosen and no next-phase work is authorized. Layer 2 is deferred and is not automatically next. Deferred items and their classifications are in docs/source-dataset-provenance-phase-exit.md, section 12, and docs/governed-reader-path-phase-exit.md, section 11; none is authorized.
 - Whether a person may resubmit a blocked reader task. Permitted now because the reader is local and free (ADR-016 decision 25). Must be decided again before any reader that costs money.
 - Repository visibility, licensing and any commercial workstream. Each requires a separate owner decision. None is made by the owner direction recorded in section 1.
 - Whether capture should ever acquire over a network. Blocked pending an owner decision on sources and a rights classification.
@@ -276,8 +297,8 @@ Gates before specific future work (none of this work is authorized; each gate ap
 - Any approval that authorizes an action, or any consumer of approved readings: authenticated identities must be decided first. Labels are not identities.
 
 Next round-table topics:
-- Phase Transition Round Table, only after the owner releases the Phase Transition Hold.
-- Provider support reply on FI-001, when it arrives.
+- Selection of the next phase, when the owner calls for it.
+- FI-001 after the provider support reply: whether any bounded diagnostic re-send is ever to be considered. None is authorized.
 - Timing of the source-reader ADR.
 
 ## 7. History
@@ -316,6 +337,10 @@ Next round-table topics:
 | 2026-11-23 | Governed Reader Path Phase Exit Record (Sprint 2 and the phase closed by the owner's merge of the record) | docs/governed-reader-path-phase-exit.md |
 | 2026-11-23 | Governed Reader Path Phase accepted and closed by owner merge. Merged before the planned independent review; reconciled after the merge with no blocking finding | PR #50 |
 | 2026-11-23 | Governance correction of the phase exit record: review order recorded; review-before-merge rule | PR #51, docs/governed-reader-path-phase-exit.md section 14 |
+| 2026-11-24 | Project state synchronized after the reader phase closeout | PR #52 |
+| 2026-11-24 | Phase Transition Hold released by the owner; two-layer data architecture approved; Source Dataset Provenance Phase selected (Layer 1 only) | docs/source-dataset-provenance-phase-exit.md, sections 2 and 4 |
+| 2026-11-24 | Source Dataset Provenance Phase, Sprint 1 immutable source membership, ADR-018 | PR #53, docs/source-datasets.md |
+| 2026-11-24 | Source Dataset Provenance Phase Exit Record (Sprint 1 and the phase closed by the owner's merge of the record) | docs/source-dataset-provenance-phase-exit.md |
 
 ## 8. Future add-ons (ideas only)
 
@@ -361,7 +386,7 @@ Infrastructure candidates raised for Sprint 7 and later:
 |---|---|
 | The standard every engine inherits | docs/architecture/cyrus-engineering-doctrine.md |
 | Architecture and contracts | docs/architecture/phase-1.md, docs/architecture/contracts.md |
-| Decisions (ADR-001 to ADR-017) | docs/decisions/ |
+| Decisions (ADR-001 to ADR-018) | docs/decisions/ |
 | Owner authorizations for live actions | docs/decisions/phase-6d-*.md |
 | Phase write-ups | docs/phase-2-skeleton.md through docs/phase-6-provider-worker.md |
 | Live pilot and preflight records | docs/pilot/ |
@@ -377,6 +402,8 @@ Infrastructure candidates raised for Sprint 7 and later:
 | Governed Source Interpretation Phase exit record | docs/governed-source-interpretation-phase-exit.md |
 | Governed reader path | docs/reader-path.md, docs/decisions/reader-path-sprint-1-adrs.md, docs/decisions/reader-path-sprint-2-adrs.md |
 | Governed Reader Path Phase exit record | docs/governed-reader-path-phase-exit.md |
+| Source datasets (Layer 1) | docs/source-datasets.md, docs/decisions/source-dataset-sprint-1-adrs.md |
+| Source Dataset Provenance Phase exit record | docs/source-dataset-provenance-phase-exit.md |
 
 ## 10. Keeping this file current
 
