@@ -285,3 +285,7 @@ The owner approves the exact reviewed eligible observation set identified by the
 Labels are not authenticated identities, and one person can use two labels. The ledger transition table is not an authority boundary against code inside the process, which can append records and transitions directly. A Task moved without a release has nothing that can be decided; a hand-built package is decidable only when every release fact equals what Core derives from the evidence.
 
 Release and owner decision create no Task, Snapshot, Worker attempt or envelope reservation. They launch nothing and do not reread Capture bytes. No model, provider, network, tool, agent, child, delegation or Track B capability is added. Any consumer of an approved reading requires its own decision.
+
+### Known bounded item
+
+The statement above that owner-decision refusals raise `ValueError` has one known exception. A hand-added approval record that carries the reader pending status but is malformed (for example, one that lacks `release_id`) makes `decide_reader_approval` raise `KeyError` or `TypeError`. Nothing is written and no Task state changes. Core never writes such a record. This is classified as future hardening and is not scheduled. See docs/governed-reader-path-phase-exit.md, section 9.
