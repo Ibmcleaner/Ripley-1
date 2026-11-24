@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-23, against main 2a4d606 (PR #45).
+Last updated: 2026-11-23, against main 1374b2f (PR #47).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -132,6 +132,8 @@ Completed:
 - Governed Source Interpretation Phase, Sprint 1 closeout, PR #44.
 - Governed Source Interpretation Phase, Sprint 2 (semantic review record and bounded reasoning envelope, ADR-014 and ADR-015) accepted, PR #45. Tests: Linux 351 run, 0 skips. Windows 351 run, 4 expected skips. Semantic review 33 of 33; reasoning envelope 33 of 33. Fifty-two mutation checks detected.
 - Governed Source Interpretation Phase Exit Record: docs/governed-source-interpretation-phase-exit.md. Sprint 2 and the phase are closed by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
+- Governed Source Interpretation Phase accepted and closed by the owner's merge of PR #46 (main 1d8e44e).
+- Governed Reader Path Phase, Sprint 1 (reader contract and deterministic isolated reader, ADR-016) accepted, PR #47. Tests: Linux 396 run, 0 skips. Windows 396 run, 4 expected skips. Focused reader tests 45 of 45. Forty-nine mutation checks detected. Sprint 1 is closed when its closeout PR is reviewed and merged by the owner.
 
 Advisory CI:
 - One advisory Linux check runs on pull requests targeting main: pinned SDK verified, full suite in a disposable copy, red on any failure, error, skip, unexpected success or zero tests. It uses a read-only token and no secrets. It is not a merge gate; no branch protection is configured. It is not a network sandbox and does not run Windows.
@@ -160,14 +162,14 @@ Governed Source Interpretation Phase (Track A) exit gate (approved by the owner)
 4. Independent semantic-review boundary implemented and proven. SATISFIED (Sprint 2, ADR-014).
 5. Cost and execution envelope proven offline for the first reasoning-capable profile. SATISFIED (Sprint 2, ADR-015).
 6. Phase closeout accepted by owner merge. SATISFIED BY THE OWNER'S MERGE of docs/governed-source-interpretation-phase-exit.md.
-Sprint 2 and the Governed Source Interpretation Phase are formally closed by the owner's merge of the phase-exit record. Acceptance is not production readiness, provider readiness or modeling readiness. The phase ran offline on UTF-8 plain text with a human semantic reviewer and no model. Sprint numbering had restarted at Sprint 1 for the phase; it ended after two sprints. No Sprint 3 exists. No next phase is chosen and no next-phase work is authorized. The next action is a Phase Transition Round Table.
+Sprint 2 and the Governed Source Interpretation Phase are formally closed by the owner's merge of the phase-exit record. Acceptance is not production readiness, provider readiness or modeling readiness. The phase ran offline on UTF-8 plain text with a human semantic reviewer and no model. Sprint numbering had restarted at Sprint 1 for the phase; it ended after two sprints. No Sprint 3 exists. The phase was accepted and closed by the owner's merge of PR #46 on 2026-11-23. The next phase, the Governed Reader Path Phase, was chosen by the owner on 2026-11-23 and is described below.
 
 Grounding capability (ADR-013):
 - Ripley One can take a hand-written proposal about captured text and decide, observation by observation, whether each cited quote exists at the cited bytes. A proposal is untrusted data. It binds to one Snapshot and may cite only the capture references already on that Snapshot; it cannot add evidence.
 - Capture evidence is verified all-or-nothing. The stored object is read once, checked against the receipt's size and SHA-256, and citations are evaluated against those same bytes. Offsets are zero-based byte offsets, start inclusive and end exclusive. A match is exact UTF-8 byte equality: case, whitespace, line endings, Unicode form and byte-order marks are not normalized. A citation that splits a multi-byte character fails.
 - A verdict is recorded for every observation. Declared uncertainty stays declared. A field with more than one observation is listed, not resolved. The content of a rejected proposal is not stored. The review package is derived from the ledger, is deterministic and writes nothing.
 - Mechanically grounded is not semantically reviewed or accepted. Grounding does not establish that an interpretation is correct, that a source is authentic or truthful, or that anything is approved.
-- It does not: include a source reader or a model-produced proposal; record a semantic-review decision; check a value against its quote; run inside the Core Task and Worker flow; use a provider, network, tool or agent; handle file types other than UTF-8 plain text; authenticate a reviewer's identity.
+- It does not: include a model-produced proposal; record a semantic-review decision; check a value against its quote; run inside the existing Core task path (Core calls it only on the reader path, ADR-016); use a provider, network, tool or agent; handle file types other than UTF-8 plain text; authenticate a reviewer's identity.
 
 Semantic review capability (ADR-014):
 - A human can record a semantic judgment about one grounding validation, bound to it by id and hash. Each eligible observation receives exactly one decision: acceptable, rejected or needs_clarification. The decision carries the observation's declared status and grounding verdict.
@@ -177,13 +179,36 @@ Semantic review capability (ADR-014):
 - It does not: authenticate anyone; detect one person using two labels; allow revision; provide a reviewer interface; run inside the Core Task and Worker flow.
 
 Reasoning envelope (ADR-015):
-- A two-step ledger gate for one future reasoning attempt. It executes nothing, and nothing uses it yet.
+- A two-step ledger gate for one reasoning attempt. By itself it executes nothing. Since ADR-016, Core opens and closes it around each reader attempt. Nothing else uses it.
 - Fixed limits: 1 attempt per operation; 0 automatic retries; input at most 262,144 bytes; output at most 65,536 bytes; deadline 120 seconds; budget at most 500,000 micro-dollars. Actual paid authority is 0. No caller can pass a limit; each attempt pins the envelope hash and a copy of the limits.
 - A second attempt is refused. A failed, uncertain or never-closed attempt stays consumed, and consumption survives restart. Oversized output, a cost above the limit and a late close are recorded as violations.
 - It does not: call a model, provider, network, tool or Worker; terminate or cancel anything; authorize spending; measure the sizes or costs a host declares; have any field for children, fan-out, delegation, tools, provider or model. ADR-010 dispatch governance is separate and unchanged.
 
+Current phase: Governed Reader Path Phase (Track A).
+- Purpose: prove one governed reader path — verified captured bytes, to a deterministic isolated reader Worker, to an untrusted proposal, to grounding, to independent human semantic review, to human approval — under Ripley's existing lifecycle, provenance, recovery, isolation and authority controls. The phase must not implement a model-backed reader.
+- Boundaries: deterministic reader only; no model; no provider; no network; no tools; no children; no delegation; no automatic retry; no NFL work; minimal additive Core integration.
+- Exit gate (approved by the owner, 2026-11-23), with the position after Sprint 1:
+  1. Reader contract accepted. SATISFIED (ADR-016).
+  2. End-to-end reader path proven. SATISFIED (Sprint 1).
+  3. Envelope governs the attempt. SATISFIED (Sprint 1).
+  4. Hostile or failing reader contained. SATISFIED within the approved Sprint 1 scope.
+  5. Human gates preserved: no path reaches final approval without grounding, then independent semantic review, then human approval. PARTIALLY SATISFIED. A task reaches durable awaiting_semantic_review and an ADR-014 review can be recorded, but the governed release from semantic review to human Core approval does not exist.
+  6. Existing behavior preserved. SATISFIED.
+  7. Phase closeout accepted by owner merge. NOT YET APPLICABLE.
+- Phase schedule: planning start Monday, November 23, 2026; target completion Friday, December 4, 2026, 6:00 PM Central; reauthorization deadline Wednesday, December 9, 2026, 6:00 PM Central.
+- Sprint 1 schedule: target Wednesday, November 25, 2026, 6:00 PM Central; reauthorization deadline Monday, November 30, 2026, 6:00 PM Central. Implementation was merged on Monday, November 23, 2026, ahead of the target. One of two architecture correction rounds was used.
+- The phase is active. No Sprint 2 is selected or authorized. No work exists merely to fill an estimated sprint range.
+
+Reader path capability (ADR-016):
+- Core has one reader entry point. A first-party deterministic Worker, run in the existing isolated process, is given the verified text of the captures on its Snapshot and returns observations: each requested "Field: value" line, or not found. It makes no judgment and holds no authority.
+- Core, not the reader, selects the evidence, sets the producer identity from the trusted Worker descriptor, assembles the proposal and grounds it. A rejected, blocked or wholly ungrounded proposal blocks the task.
+- Core reserves one ADR-015 attempt before launch. The attempt's absolute deadline governs preparation as well as execution: only the time remaining is given to the process, and an attempt that has already expired is not launched. One attempt, no retry, no correction loop. recover() refuses a reader task.
+- Reader-only exception to ADR-012: for a reader task alone, the capture references are part of the inputs, the packet and the task key. Every other task and every provider packet is unchanged. ADR-012 itself is not amended.
+- A grounded reader task is bound by a sixteen-key record that pins six linked records by id and hash, and stops in awaiting_semantic_review, which survives restart and has no exit. A read-only chain check reports any of 20 break reasons.
+- It does not: use a model, provider, network, tool, child or agent; release a task to approval; continue after an interruption; bound what a process writes before it is measured; contain hostile code; read anything other than UTF-8 plain text. A person may resubmit a blocked reader task as a new task with its own attempt; this must be decided again before any reader that costs money.
+
 Reviewed code baseline:
-The reviewed code baseline is main 2a4d606f0d0ae5a8c9ac3f265bd4e2b5a052cf44 (merge of PR #45), whose tree is identical to commit e32e831, which Claude reviewed. It supersedes 4e10661. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
+The reviewed code baseline is main 1374b2fc13b5c96da6c27d24bf85fe87bc49561c (merge of PR #47), whose tree is identical to commit abca2ef, which Claude reviewed. It supersedes 2a4d606. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. A provider support case is open.
@@ -211,16 +236,19 @@ Known small items:
 - Grounding supports UTF-8 plain text only and does not check a value against its quote. See docs/grounding.md, "Known limitations".
 - A hand-forged capture record that lacks expected fields could raise an error in grounding instead of producing a reason code. Not reachable through the current capture_file writer. Not scheduled.
 - Semantic review identities are labels, not authenticated identities; a validation is reviewed once with no revision. See docs/semantic-review.md.
-- The reasoning envelope runs nothing and nothing uses it yet; its deadline is detection only and its budget is synthetic accounting. See docs/reasoning-envelope.md.
+- The reasoning envelope is used only by the reader path. Its own deadline is detection only (on the reader path the isolation layer enforces the same instant) and its budget is synthetic accounting. See docs/reasoning-envelope.md and docs/reader-path.md.
+- The reader path has a deterministic reader only, no release to approval and no continuation after an interruption. See docs/reader-path.md, "Limits and non-claims".
+- The line reader reports a matching line longer than 4,096 bytes as not found. As specified. Not scheduled.
 
 Owner decision needed:
-- Selection of the next phase, at a Phase Transition Round Table held after the Governed Source Interpretation Phase is accepted. Not chosen by this record, and no next-phase work is authorized. Candidates carried forward for that planning, none authorized: a bounded source reader as a model-backed Worker; running grounding, semantic review and the envelope inside the Core flow; a read-only ledger status report.
+- Whether a Sprint 2 is needed in the Governed Reader Path Phase, and its scope. Not chosen or authorized by this record. Exit-gate condition 5 is partially satisfied: the governed release from semantic review to human approval does not exist.
+- Whether a person may resubmit a blocked reader task. Permitted now because the reader is local and free (ADR-016 decision 25). Must be decided again before any reader that costs money.
 - Repository visibility, licensing and any commercial workstream. Each requires a separate owner decision. None is made by the owner direction recorded in section 1.
 - Whether capture should ever acquire over a network. Blocked pending an owner decision on sources and a rights classification.
 - Whether and when the advisory check becomes a required check. Not decided.
 
 Next round-table topics:
-- Phase Transition Round Table (after phase acceptance).
+- Phase exit gate comparison after the Governed Reader Path Phase Sprint 1 closeout.
 - Provider support reply on FI-001, when it arrives.
 - Timing of the source-reader ADR.
 
@@ -253,6 +281,8 @@ Next round-table topics:
 | 2026-11-21 | Governed Source Interpretation Phase, Sprint 1 closeout | PR #44 |
 | 2026-11-23 | Sprint 2 semantic review record and bounded reasoning envelope, ADR-014 and ADR-015 | PR #45, docs/semantic-review.md, docs/reasoning-envelope.md |
 | 2026-11-23 | Governed Source Interpretation Phase Exit Record (Sprint 2 and the phase closed by the owner's merge of the record); owner direction on ownership and commercial model recorded | docs/governed-source-interpretation-phase-exit.md |
+| 2026-11-23 | Governed Source Interpretation Phase accepted and closed by owner merge | PR #46 |
+| 2026-11-23 | Governed Reader Path Phase chosen by the owner; Sprint 1 reader contract and deterministic isolated reader, ADR-016 | PR #47, docs/reader-path.md |
 
 ## 8. Future add-ons (ideas only)
 
@@ -298,7 +328,7 @@ Infrastructure candidates raised for Sprint 7 and later:
 |---|---|
 | The standard every engine inherits | docs/architecture/cyrus-engineering-doctrine.md |
 | Architecture and contracts | docs/architecture/phase-1.md, docs/architecture/contracts.md |
-| Decisions (ADR-001 to ADR-015) | docs/decisions/ |
+| Decisions (ADR-001 to ADR-016) | docs/decisions/ |
 | Owner authorizations for live actions | docs/decisions/phase-6d-*.md |
 | Phase write-ups | docs/phase-2-skeleton.md through docs/phase-6-provider-worker.md |
 | Live pilot and preflight records | docs/pilot/ |
@@ -312,6 +342,7 @@ Infrastructure candidates raised for Sprint 7 and later:
 | Semantic review | docs/semantic-review.md, docs/decisions/source-interpretation-sprint-2-adrs.md |
 | Reasoning envelope | docs/reasoning-envelope.md, docs/decisions/source-interpretation-sprint-2-adrs.md |
 | Governed Source Interpretation Phase exit record | docs/governed-source-interpretation-phase-exit.md |
+| Governed reader path | docs/reader-path.md, docs/decisions/reader-path-sprint-1-adrs.md |
 
 ## 10. Keeping this file current
 
