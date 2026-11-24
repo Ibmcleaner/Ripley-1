@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-23, against main 1374b2f (PR #47).
+Last updated: 2026-11-23, against main faeabd3 (PR #49).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -134,6 +134,9 @@ Completed:
 - Governed Source Interpretation Phase Exit Record: docs/governed-source-interpretation-phase-exit.md. Sprint 2 and the phase are closed by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
 - Governed Source Interpretation Phase accepted and closed by the owner's merge of PR #46 (main 1d8e44e).
 - Governed Reader Path Phase, Sprint 1 (reader contract and deterministic isolated reader, ADR-016) accepted, PR #47. Tests: Linux 396 run, 0 skips. Windows 396 run, 4 expected skips. Focused reader tests 45 of 45. Forty-nine mutation checks detected. Sprint 1 is closed when its closeout PR is reviewed and merged by the owner.
+- Governed Reader Path Phase, Sprint 1 closeout, PR #48 (main 0a520ab).
+- Governed Reader Path Phase, Sprint 2 (reader semantic release and explicit owner approval, ADR-017) accepted, PR #49. Tests: Linux 428 run, 0 skips. Windows 428 run, 4 expected skips. Focused release tests 32 of 32. Fifty mutation checks detected on both ledgers.
+- Governed Reader Path Phase Exit Record: docs/governed-reader-path-phase-exit.md. Sprint 2 and the phase are closed by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
 
 Advisory CI:
 - One advisory Linux check runs on pull requests targeting main: pinned SDK verified, full suite in a disposable copy, red on any failure, error, skip, unexpected success or zero tests. It uses a read-only token and no secrets. It is not a merge gate; no branch protection is configured. It is not a network sandbox and does not run Windows.
@@ -184,31 +187,35 @@ Reasoning envelope (ADR-015):
 - A second attempt is refused. A failed, uncertain or never-closed attempt stays consumed, and consumption survives restart. Oversized output, a cost above the limit and a late close are recorded as violations.
 - It does not: call a model, provider, network, tool or Worker; terminate or cancel anything; authorize spending; measure the sizes or costs a host declares; have any field for children, fan-out, delegation, tools, provider or model. ADR-010 dispatch governance is separate and unchanged.
 
-Current phase: Governed Reader Path Phase (Track A).
-- Purpose: prove one governed reader path — verified captured bytes, to a deterministic isolated reader Worker, to an untrusted proposal, to grounding, to independent human semantic review, to human approval — under Ripley's existing lifecycle, provenance, recovery, isolation and authority controls. The phase must not implement a model-backed reader.
-- Boundaries: deterministic reader only; no model; no provider; no network; no tools; no children; no delegation; no automatic retry; no NFL work; minimal additive Core integration.
-- Exit gate (approved by the owner, 2026-11-23), with the position after Sprint 1:
-  1. Reader contract accepted. SATISFIED (ADR-016).
-  2. End-to-end reader path proven. SATISFIED (Sprint 1).
-  3. Envelope governs the attempt. SATISFIED (Sprint 1).
-  4. Hostile or failing reader contained. SATISFIED within the approved Sprint 1 scope.
-  5. Human gates preserved: no path reaches final approval without grounding, then independent semantic review, then human approval. PARTIALLY SATISFIED. A task reaches durable awaiting_semantic_review and an ADR-014 review can be recorded, but the governed release from semantic review to human Core approval does not exist.
-  6. Existing behavior preserved. SATISFIED.
-  7. Phase closeout accepted by owner merge. NOT YET APPLICABLE.
-- Phase schedule: planning start Monday, November 23, 2026; target completion Friday, December 4, 2026, 6:00 PM Central; reauthorization deadline Wednesday, December 9, 2026, 6:00 PM Central.
-- Sprint 1 schedule: target Wednesday, November 25, 2026, 6:00 PM Central; reauthorization deadline Monday, November 30, 2026, 6:00 PM Central. Implementation was merged on Monday, November 23, 2026, ahead of the target. One of two architecture correction rounds was used.
-- The phase is active. No Sprint 2 is selected or authorized. No work exists merely to fill an estimated sprint range.
+Governed Reader Path Phase (Track A) exit gate (approved by the owner, 2026-11-23):
+1. Reader contract accepted. SATISFIED (ADR-016).
+2. End-to-end reader path proven. SATISFIED (Sprint 1).
+3. Envelope governs the attempt. SATISFIED (Sprint 1).
+4. Hostile or failing reader contained. SATISFIED within the approved deterministic scope (Sprint 1).
+5. Human gates preserved: no path reaches final approval without grounding, then independent semantic review, then human approval. SATISFIED (Sprint 2, ADR-017).
+6. Existing behavior preserved. SATISFIED, with one owner-authorized two-line change to test RP-15.
+7. Phase closeout accepted by owner merge. SATISFIED BY THE OWNER'S MERGE of docs/governed-reader-path-phase-exit.md.
+Sprint 2 and the Governed Reader Path Phase are formally closed by the owner's merge of the phase-exit record. Acceptance is not production readiness, provider readiness or modeling readiness. The phase ran offline on UTF-8 plain text with a deterministic reader, a human semantic reviewer and a human owner, and no model. It ended after two sprints, both merged on Monday, November 23, 2026, ahead of the phase target of Friday, December 4, 2026. No Sprint 3 exists. No next phase is chosen and no next-phase work is authorized. The next action is a Phase Transition Round Table.
 
 Reader path capability (ADR-016):
 - Core has one reader entry point. A first-party deterministic Worker, run in the existing isolated process, is given the verified text of the captures on its Snapshot and returns observations: each requested "Field: value" line, or not found. It makes no judgment and holds no authority.
 - Core, not the reader, selects the evidence, sets the producer identity from the trusted Worker descriptor, assembles the proposal and grounds it. A rejected, blocked or wholly ungrounded proposal blocks the task.
 - Core reserves one ADR-015 attempt before launch. The attempt's absolute deadline governs preparation as well as execution: only the time remaining is given to the process, and an attempt that has already expired is not launched. One attempt, no retry, no correction loop. recover() refuses a reader task.
 - Reader-only exception to ADR-012: for a reader task alone, the capture references are part of the inputs, the packet and the task key. Every other task and every provider packet is unchanged. ADR-012 itself is not amended.
-- A grounded reader task is bound by a sixteen-key record that pins six linked records by id and hash, and stops in awaiting_semantic_review, which survives restart and has no exit. A read-only chain check reports any of 20 break reasons.
-- It does not: use a model, provider, network, tool, child or agent; release a task to approval; continue after an interruption; bound what a process writes before it is measured; contain hostile code; read anything other than UTF-8 plain text. A person may resubmit a blocked reader task as a new task with its own attempt; this must be decided again before any reader that costs money.
+- A grounded reader task is bound by a sixteen-key record that pins six linked records by id and hash, and stops in awaiting_semantic_review, which survives restart. Its only exits are the two defined by ADR-017. A read-only chain check reports any of 20 break reasons.
+- It does not: use a model, provider, network, tool, child or agent; continue after an interruption; bound what a process writes before it is measured; contain hostile code; read anything other than UTF-8 plain text. A person may resubmit a blocked reader task as a new task with its own attempt; this must be decided again before any reader that costs money.
+
+Reader release and owner approval (ADR-017):
+- A person releases a reader task by naming its binding and its one ADR-014 semantic review, each by id and hash. Core verifies both, the chain and their exact relationship; any failure is a recorded refusal, one of twenty reasons, that leaves the task state unchanged. Release creates no owner verdict.
+- Core derives the approval scope: included, uncertain, not-found and excluded observation ids. The caller cannot choose them. An observation that was not grounded is excluded and never approved. Declared uncertainty reaches the final approval record unchanged.
+- All decisions acceptable: one release record, one pending approval with the status pending_reader_owner_approval, then the state pending_owner_approval. Any rejected or needs_clarification decision: one release record and the state blocked. A rejected semantic review is not an owner rejection.
+- The owner decides through a separate entry point, decide_reader_approval, with the owner label, an explicit approved or rejected, and a reason. Core derives every release fact again before writing a judgment. The existing decide_approval is unchanged and refuses reader pending approvals; the reader entry point refuses existing-style ones.
+- A repeated or interrupted release or decision writes no second release record, pending approval or judgment. An opposite decision is refused.
+- Approval means the owner accepts the exact reviewed eligible observation set as an acceptable reading of the captured evidence. It authorizes no downstream action.
+- It does not: authenticate any label; provide a clarification or revision path; give an approved reading any consumer; launch a reader, reserve an attempt or reread captured bytes.
 
 Reviewed code baseline:
-The reviewed code baseline is main 1374b2fc13b5c96da6c27d24bf85fe87bc49561c (merge of PR #47), whose tree is identical to commit abca2ef, which Claude reviewed. It supersedes 2a4d606. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
+The reviewed code baseline is main faeabd3569c0241032f27b452c547fc74c67d33a (merge of PR #49), whose tree is identical to commit ac2f345, which Claude reviewed. It supersedes 1374b2f. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. A provider support case is open.
@@ -237,18 +244,20 @@ Known small items:
 - A hand-forged capture record that lacks expected fields could raise an error in grounding instead of producing a reason code. Not reachable through the current capture_file writer. Not scheduled.
 - Semantic review identities are labels, not authenticated identities; a validation is reviewed once with no revision. See docs/semantic-review.md.
 - The reasoning envelope is used only by the reader path. Its own deadline is detection only (on the reader path the isolation layer enforces the same instant) and its budget is synthetic accounting. See docs/reasoning-envelope.md and docs/reader-path.md.
-- The reader path has a deterministic reader only, no release to approval and no continuation after an interruption. See docs/reader-path.md, "Limits and non-claims".
+- The reader path has a deterministic reader only and no continuation after an interruption. An approved reading has no consumer. See docs/reader-path.md and docs/governed-reader-path-phase-exit.md.
 - The line reader reports a matching line longer than 4,096 bytes as not found. As specified. Not scheduled.
+- A hand-added, malformed approval record with the reader pending status makes decide_reader_approval raise KeyError or TypeError where the contract says ValueError. Nothing is written; Core never writes such a record. Future hardening. Not scheduled. See docs/governed-reader-path-phase-exit.md, section 9.
+- A Windows gate must be run with the pinned provider SDK installed; without it 39 provider tests are skipped and the gate is not met.
 
 Owner decision needed:
-- Whether a Sprint 2 is needed in the Governed Reader Path Phase, and its scope. Not chosen or authorized by this record. Exit-gate condition 5 is partially satisfied: the governed release from semantic review to human approval does not exist.
+- Selection of the next phase, at a Phase Transition Round Table held after the Governed Reader Path Phase is accepted. Not chosen by this record, and no next-phase work is authorized. The deferred items and their classifications are in docs/governed-reader-path-phase-exit.md, section 11; none is authorized.
 - Whether a person may resubmit a blocked reader task. Permitted now because the reader is local and free (ADR-016 decision 25). Must be decided again before any reader that costs money.
 - Repository visibility, licensing and any commercial workstream. Each requires a separate owner decision. None is made by the owner direction recorded in section 1.
 - Whether capture should ever acquire over a network. Blocked pending an owner decision on sources and a rights classification.
 - Whether and when the advisory check becomes a required check. Not decided.
 
 Next round-table topics:
-- Phase exit gate comparison after the Governed Reader Path Phase Sprint 1 closeout.
+- Phase Transition Round Table (after phase acceptance).
 - Provider support reply on FI-001, when it arrives.
 - Timing of the source-reader ADR.
 
@@ -283,6 +292,9 @@ Next round-table topics:
 | 2026-11-23 | Governed Source Interpretation Phase Exit Record (Sprint 2 and the phase closed by the owner's merge of the record); owner direction on ownership and commercial model recorded | docs/governed-source-interpretation-phase-exit.md |
 | 2026-11-23 | Governed Source Interpretation Phase accepted and closed by owner merge | PR #46 |
 | 2026-11-23 | Governed Reader Path Phase chosen by the owner; Sprint 1 reader contract and deterministic isolated reader, ADR-016 | PR #47, docs/reader-path.md |
+| 2026-11-23 | Governed Reader Path Phase, Sprint 1 closeout | PR #48 |
+| 2026-11-23 | Sprint 2 reader semantic release and explicit owner approval, ADR-017 | PR #49, docs/reader-path.md |
+| 2026-11-23 | Governed Reader Path Phase Exit Record (Sprint 2 and the phase closed by the owner's merge of the record) | docs/governed-reader-path-phase-exit.md |
 
 ## 8. Future add-ons (ideas only)
 
@@ -328,7 +340,7 @@ Infrastructure candidates raised for Sprint 7 and later:
 |---|---|
 | The standard every engine inherits | docs/architecture/cyrus-engineering-doctrine.md |
 | Architecture and contracts | docs/architecture/phase-1.md, docs/architecture/contracts.md |
-| Decisions (ADR-001 to ADR-016) | docs/decisions/ |
+| Decisions (ADR-001 to ADR-017) | docs/decisions/ |
 | Owner authorizations for live actions | docs/decisions/phase-6d-*.md |
 | Phase write-ups | docs/phase-2-skeleton.md through docs/phase-6-provider-worker.md |
 | Live pilot and preflight records | docs/pilot/ |
@@ -342,7 +354,8 @@ Infrastructure candidates raised for Sprint 7 and later:
 | Semantic review | docs/semantic-review.md, docs/decisions/source-interpretation-sprint-2-adrs.md |
 | Reasoning envelope | docs/reasoning-envelope.md, docs/decisions/source-interpretation-sprint-2-adrs.md |
 | Governed Source Interpretation Phase exit record | docs/governed-source-interpretation-phase-exit.md |
-| Governed reader path | docs/reader-path.md, docs/decisions/reader-path-sprint-1-adrs.md |
+| Governed reader path | docs/reader-path.md, docs/decisions/reader-path-sprint-1-adrs.md, docs/decisions/reader-path-sprint-2-adrs.md |
+| Governed Reader Path Phase exit record | docs/governed-reader-path-phase-exit.md |
 
 ## 10. Keeping this file current
 
