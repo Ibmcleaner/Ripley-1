@@ -24,10 +24,12 @@ MAX_CAPTURE_REFERENCES = 16
 
 
 # → blocked from submitted/validated is restart-only; gated by SQLiteLedger.transition
+READER_SCOPE_KEYS = ('included_observation_ids', 'uncertain_observation_ids', 'not_found_observation_ids', 'excluded_observation_ids')
+
 ALLOWED_TRANSITIONS = {
     'submitted': {'running', 'blocked'},
     'running': {'validated', 'blocked', 'awaiting_semantic_review'},
-    'awaiting_semantic_review': set(),
+    'awaiting_semantic_review': {'pending_owner_approval', 'blocked'},
     'validated': {'pending_owner_approval', 'blocked'},
     'blocked': set(),
     'pending_owner_approval': {'approved', 'rejected'},
@@ -994,3 +996,183 @@ class Ripley:
         except (KeyError, TypeError, AttributeError):
             consistent = False
         return answer(None if consistent else 'chain_link_mismatch')
+
+    def _reader_release_facts(self, reader_proposal_id, reader_proposal_hash,
+                              semantic_review_id, semantic_review_hash):
+        from . import semantic_review
+
+        binding = self.ledger.records.get(reader_proposal_id)
+        if binding is None or binding.kind != 'reader_proposal':
+            return 'binding_unavailable', None
+        if binding.content_hash != reader_proposal_hash:
+            return 'binding_hash_mismatch', None
+        if self.reader_chain(reader_proposal_id)['outcome'] != 'verified':
+            return 'chain_broken', None
+        task = self.ledger.records.get(binding.data['task_id'])
+        if (task is None or task.kind != 'task' or task.data.get('task_type') != 'read'
+                or task.data.get('domain_id') != 'source-reading'):
+            return 'task_unavailable', None
+        review = self.ledger.records.get(semantic_review_id)
+        if review is None:
+            return 'semantic_review_missing', None
+        if review.kind != 'semantic_review':
+            return 'semantic_review_wrong_kind', None
+        if review.content_hash != semantic_review_hash:
+            return 'semantic_review_hash_mismatch', None
+        try:
+            data = review.data
+            if (data['validation_id'], data['validation_hash']) != (
+                    binding.data['grounding_validation_id'], binding.data['grounding_validation_hash']):
+                return 'semantic_review_wrong_validation', None
+            if (data['proposal_id'], data['proposal_hash']) != (
+                    binding.data['proposal_id'], binding.data['proposal_hash']):
+                return 'semantic_review_wrong_proposal', None
+            if (data['snapshot_id'], data['snapshot_hash']) != (
+                    binding.data['snapshot_id'], binding.data['snapshot_hash']):
+                return 'semantic_review_wrong_snapshot', None
+            if (data['criteria_id'], data['criteria_sha256']) != (
+                    semantic_review.CRITERIA_ID, semantic_review.CRITERIA_SHA256):
+                return 'criteria_mismatch', None
+            proposal = self.ledger.records[binding.data['proposal_id']].data['proposal']
+            validation = self.ledger.records[binding.data['grounding_validation_id']].data
+            producer = proposal['producer']['identity']
+            if (binding.data['producer']['identity'] != producer
+                    or binding.data['producer']['kind'] != 'worker'
+                    or proposal['producer']['kind'] != 'worker'
+                    or data['producer_identity'] != producer):
+                return 'producer_mismatch', None
+            reviewer = data['reviewer_identity']
+            if data['reviewer_kind'] != 'human' or not isinstance(reviewer, str) or not reviewer:
+                return 'reviewer_invalid', None
+            if reviewer.casefold() == producer.casefold():
+                return 'reviewer_is_producer', None
+            statuses = {item['observation_id']: item['status'] for item in proposal['observations']}
+            verdicts = [(item['observation_id'], item['verdict']) for item in validation['verdicts']]
+            eligible = [(identity, verdict) for identity, verdict in verdicts if verdict != 'not_grounded']
+            if not eligible:
+                return 'no_eligible_observations', None
+            decisions = data['decisions']
+            if not isinstance(decisions, (tuple, list)):
+                raise TypeError('decision sequence required')
+            observed = [(item['observation_id'], item['grounding_verdict'], item['status'])
+                        for item in decisions]
+            expected = [(identity, verdict, statuses[identity]) for identity, verdict in eligible]
+            if observed != expected or any(item['verdict'] not in semantic_review.VERDICTS for item in decisions):
+                return 'decision_coverage_invalid', None
+            if sum(record.kind == 'semantic_review'
+                   and record.data.get('validation_id') == binding.data['grounding_validation_id']
+                   for record in self.ledger.records.values()) != 1:
+                return 'semantic_review_conflict', None
+        except (KeyError, TypeError, AttributeError):
+            return 'semantic_review_malformed', None
+        rejected = [item['observation_id'] for item in decisions if item['verdict'] == 'rejected']
+        unclear = [item['observation_id'] for item in decisions if item['verdict'] == 'needs_clarification']
+        disposition = 'rejected' if rejected else 'needs_clarification' if unclear else 'eligible'
+        included = [identity for identity, _ in eligible] if disposition == 'eligible' else []
+        return None, freeze({
+            'task_id': task.id, 'reader_proposal_id': binding.id,
+            'reader_proposal_hash': binding.content_hash, 'semantic_review_id': review.id,
+            'semantic_review_hash': review.content_hash, 'producer_identity': producer,
+            'reviewer_identity': reviewer, 'disposition': disposition,
+            'included_observation_ids': included,
+            'uncertain_observation_ids': [identity for identity in included if statuses[identity] == 'uncertain'],
+            'not_found_observation_ids': [identity for identity in included if statuses[identity] == 'not_found'],
+            'excluded_observation_ids': [identity for identity, verdict in verdicts if verdict == 'not_grounded'],
+            'rejected_observation_ids': rejected, 'clarification_observation_ids': unclear})
+
+    def release_reader(self, reader_proposal_id, reader_proposal_hash,
+                       semantic_review_id, semantic_review_hash, actor):
+        if (any(not isinstance(value, str) for value in
+                (reader_proposal_id, reader_proposal_hash, semantic_review_id, semantic_review_hash))
+                or not isinstance(actor, str) or not actor.strip() or len(actor) > 128):
+            raise ValueError('invalid release call')
+
+        def returned(outcome, release=None, approval=None, refusal=None):
+            return {'outcome': outcome, 'release': release, 'approval': approval, 'refusal': refusal,
+                    'task_state': self.ledger.task_state(release.data['task_id']) if release else None}
+
+        def refuse(reason):
+            refusal = self.ledger.add('reader_release_refusal', {
+                'reader_proposal_id': reader_proposal_id if 1 <= len(reader_proposal_id) <= 64 else None,
+                'semantic_review_id': semantic_review_id if 1 <= len(semantic_review_id) <= 64 else None,
+                'released_by': actor, 'reason': reason})
+            return returned('refused', refusal=refusal)
+
+        reason, facts = self._reader_release_facts(reader_proposal_id, reader_proposal_hash,
+                                                  semantic_review_id, semantic_review_hash)
+        if reason is not None:
+            return refuse(reason)
+        state = self.ledger.task_state(facts['task_id'])
+        prior = [record for record in self.ledger.records.values()
+                 if record.kind == 'reader_release' and record.data.get('task_id') == facts['task_id']]
+        if prior:
+            release = prior[0]
+            if len(prior) != 1 or any(release.data.get(key) != value for key, value in facts.items()):
+                return refuse('release_conflict')
+        else:
+            if state != 'awaiting_semantic_review':
+                return refuse('task_not_awaiting_review')
+            release = self.ledger.add('reader_release', {**dict(facts), 'released_by': actor})
+        if facts['disposition'] != 'eligible':
+            if state == 'awaiting_semantic_review':
+                self.ledger.transition(facts['task_id'], state, 'blocked', actor,
+                                       'semantic_review_' + facts['disposition'])
+            return returned('blocked', release=release)
+        approvals = [record for record in self.ledger.records.values()
+                     if record.kind == 'approval' and record.data.get('release_id') == release.id]
+        pending = next((record for record in approvals
+                        if record.data.get('status') == 'pending_reader_owner_approval'), None)
+        if pending is None:
+            if approvals:
+                return refuse('release_conflict')
+            pending = self.ledger.add('approval', {
+                'task_id': facts['task_id'], 'release_id': release.id, 'release_hash': release.content_hash,
+                'authority': 'owner', 'status': 'pending_reader_owner_approval',
+                **{key: facts[key] for key in READER_SCOPE_KEYS}})
+        if state == 'awaiting_semantic_review':
+            self.ledger.transition(facts['task_id'], state, 'pending_owner_approval', actor,
+                                   'reader_release_eligible')
+        return returned('eligible', release=release, approval=pending)
+
+    def decide_reader_approval(self, pending_id, actor, decision, reason):
+        if (actor != 'owner' or decision not in ('approved', 'rejected')
+                or not isinstance(reason, str) or not reason.strip() or not isinstance(pending_id, str)):
+            raise ValueError('owner, explicit decision and reason required')
+        pending = self.ledger.records.get(pending_id)
+        if (pending is None or pending.kind != 'approval'
+                or pending.data.get('status') != 'pending_reader_owner_approval'):
+            raise ValueError('reader pending approval required')
+        release = self.ledger.records.get(pending.data['release_id'])
+        if (release is None or release.kind != 'reader_release'
+                or release.content_hash != pending.data['release_hash']
+                or release.data['task_id'] != pending.data['task_id']):
+            raise ValueError('release evidence mismatch')
+        failure, facts = self._reader_release_facts(
+            release.data['reader_proposal_id'], release.data['reader_proposal_hash'],
+            release.data['semantic_review_id'], release.data['semantic_review_hash'])
+        if (failure is not None or facts['disposition'] != 'eligible'
+                or any(release.data.get(key) != value for key, value in facts.items())
+                or any(pending.data.get(key) != facts[key] for key in READER_SCOPE_KEYS)
+                or sum(record.kind == 'reader_release' and record.data.get('task_id') == facts['task_id']
+                       for record in self.ledger.records.values()) != 1
+                or sum(record.kind == 'approval' and record.data.get('release_id') == release.id
+                       and record.data.get('status') == 'pending_reader_owner_approval'
+                       for record in self.ledger.records.values()) != 1):
+            raise ValueError('release evidence no longer verifies')
+        judgments = [record for record in self.ledger.records.values()
+                     if record.kind == 'approval' and record.supersedes == pending.id]
+        if judgments:
+            judgment = judgments[0]
+            if len(judgments) != 1 or judgment.data['status'] != decision:
+                raise ValueError('conflicting owner decision')
+            if self.ledger.task_state(facts['task_id']) == 'pending_owner_approval':
+                self.ledger.transition(facts['task_id'], 'pending_owner_approval', decision,
+                                       actor, judgment.data['reason'])
+            return judgment
+        if self.ledger.task_state(facts['task_id']) != 'pending_owner_approval':
+            raise ValueError('task is not awaiting approval')
+        judgment = self.ledger.add('approval', {
+            **dict(pending.data), 'authority': actor, 'status': decision, 'reason': reason},
+            supersedes=pending.id)
+        self.ledger.transition(facts['task_id'], 'pending_owner_approval', decision, actor, reason)
+        return judgment

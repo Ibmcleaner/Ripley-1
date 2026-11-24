@@ -459,9 +459,9 @@ class _ReaderCases(_ReaderFixture):
 
     def test_rp_15_no_approval_path(self):
         result = self._run()
-        self.assertEqual(ALLOWED_TRANSITIONS['awaiting_semantic_review'], set())
+        self.assertEqual(ALLOWED_TRANSITIONS['awaiting_semantic_review'], {'pending_owner_approval', 'blocked'})
         self.assertEqual(ALLOWED_TRANSITIONS['running'], {'validated', 'blocked', 'awaiting_semantic_review'})
-        for state in ('validated', 'pending_owner_approval', 'approved', 'rejected', 'blocked', 'running'):
+        for state in ('validated', 'approved', 'rejected', 'running'):
             with self.assertRaises(ValueError):
                 self.ledger.transition(result['task'].id, 'awaiting_semantic_review', state, 'owner', 'test')
         self.assertEqual(self._records('approval'), [])
