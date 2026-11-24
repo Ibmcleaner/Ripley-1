@@ -11,13 +11,17 @@ from ripley.core import (ENVELOPE_VERSION, TERMINATION_GRACE_SECONDS, WATCHDOG_M
 from ripley.synthetic import InventoryAdapter
 from ripley.nfl_availability import NflAvailabilityAdapter
 from ripley.workers import spec_for
+from ripley.reader import LineReaderWorker, ReaderAdapter, evidence_is_valid
 
 
-WORKERS = {'mock-worker': MockWorker}
-ADAPTERS = {'synthetic-inventory': InventoryAdapter, 'nfl-availability': NflAvailabilityAdapter}
+WORKERS = {'mock-worker': MockWorker, 'line-reader': LineReaderWorker}
+ADAPTERS = {'synthetic-inventory': InventoryAdapter, 'nfl-availability': NflAvailabilityAdapter,
+            'source-reading': ReaderAdapter}
 if os.environ.get('RIPLEY_ENABLE_TEST_WORKERS') == '1':
     from ripley.synthetic import TestBehaviorWorker
     WORKERS['test-behavior-worker'] = TestBehaviorWorker
+    from ripley.reader import TestReaderWorker
+    WORKERS['test-reader-worker'] = TestReaderWorker
 
 IDENTITY_FIELDS = ('envelope_version', 'attempt_id', 'task_id', 'task_type', 'domain_id',
                    'domain_version', 'worker_identity')
@@ -37,7 +41,7 @@ def _worker_class(identity):
 
 def _read_request(raw):
     packet = decode_protocol_object(raw)
-    if set(packet) != set(IDENTITY_FIELDS) | {'inputs', 'deadline_at'}:
+    if set(packet) - {'evidence'} != set(IDENTITY_FIELDS) | {'inputs', 'deadline_at'}:
         raise ValueError('invalid request fields')
     if packet['envelope_version'] != ENVELOPE_VERSION or any(
             not isinstance(packet[key], str) or not packet[key] for key in IDENTITY_FIELDS):
@@ -74,10 +78,15 @@ def main():
 
     worker = worker_class()
     spec = spec_for(worker.identity)
+    if (spec.kind == 'reader') != ('evidence' in packet):
+        return 2
+    if spec.kind == 'reader' and not evidence_is_valid(packet['evidence']):
+        return 2
     task = freeze({'id': packet['task_id'], 'task_type': packet['task_type'],
                    'domain_id': packet['domain_id'], 'domain_version': packet['domain_version'],
                    **({'deadline_at': packet['deadline_at']} if spec.kind == 'provider' else {})})
-    snapshot = freeze({'inputs': packet['inputs'], 'domain_version': packet['domain_version']})
+    snapshot = freeze({'inputs': packet['inputs'], 'domain_version': packet['domain_version'],
+                       **({'evidence': packet['evidence']} if spec.kind == 'reader' else {})})
     response = {key: packet[key] for key in ('envelope_version', 'attempt_id', 'worker_identity')}
     if spec.kind == 'provider':
         diagnostics = StringIO()
@@ -106,7 +115,7 @@ def main():
     else:
         response.update(status='ok', output=output)
 
-    if worker.identity == 'test-behavior-worker':
+    if worker.identity in ('test-behavior-worker', 'test-reader-worker'):
         worker.write_test_response(response, sys.stdout.buffer)
     else:
         sys.stdout.buffer.write(canonical_json(response))
