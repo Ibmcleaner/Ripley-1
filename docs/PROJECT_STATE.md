@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-24, against main 8a3c331 (PR #53).
+Last updated: 2026-11-24, against main 42bee08 (PR #55).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -58,7 +58,7 @@ Owner direction, 2026-11-21: Track A is Ripley One as the native agentic orchest
 |---|---|
 | Robert Legorreta | Product Owner and CEO. Sets priorities, makes owner decisions, accepts work, merges, and personally signs any live or paid authorization. |
 | Copilot | Senior PM and Scrum Master. Chairs round tables, rules on scope, writes decision briefs, keeps the decision log. Does not implement or review code. |
-| Claude | Architecture lead and principal independent reviewer. Writes assignments, reviews published commits, runs tests on Linux. Does not push to the repository. |
+| Claude | Architecture lead and principal independent reviewer. Writes assignments, reviews published commits, runs tests on Linux. The architecture and review chat session is read-only and does not push to the repository. A separate, owner-supervised local Claude Code /ship steward session may push in-scope correction commits to an existing pull request branch under the pilot rule in section 5. Does not approve or merge. |
 | ChatGPT | Primary implementer and documentation maintainer. Builds on a branch, publishes its own branches and PRs. Does not merge. |
 
 The owner relays every message between models. Models work from actual artifacts (files, diffs, test output), not summaries.
@@ -76,7 +76,7 @@ Normal sequence:
 4. Owner decides GO or NO-GO.
 5. Claude writes the assignment as one copy block. Copilot makes a final scope check.
 6. ChatGPT implements on a branch, opens a draft PR and reports back.
-7. Claude reviews the published commit and runs the tests on Linux.
+7. Claude reviews the published commit and runs the tests on Linux. Where the owner designates a pull request for the /ship steward pilot (standing rules), the owner runs local /ship first, ChatGPT independently reviews every /ship commit, and Claude then reviews the exact final head.
 8. Owner runs the tests on Windows where the sprint calls for it.
 9. Owner merges.
 10. A closeout PR records the evidence and updates sections 6 and 7 of this file.
@@ -108,6 +108,7 @@ Standing rules:
 - One complete, self-contained, hash-verified artifact per major handoff. The chair confirms an artifact is complete before asking the owner to relay it. The owner is not asked to reconstruct or splice messages from the models.
 - Independent review precedes owner merge (owner rule, 2026-11-23). A pull request requiring independent review must not be owner-merged until the independent-review verdict is present in the active owner handoff. If an owner merge occurs before that verdict, the variance must be explicitly recorded and independently reconciled before project advancement.
 - Evidence keeps its source. Results are attributed to whoever established them: independently reproduced by the reviewer, reported by the owner, reported by the implementer, or shown on a hosted run page. Tests the reviewer runs are the independent evidence. Hosted log lines the reviewer could not see are implementer-reported and are never relabeled as independently observed.
+- Claude Code /ship steward pilot (owner-approved 2026-11-24). Local Claude Code /ship is approved for a supervised PR-steward pilot on a Draft pull request that the owner designates. It is a workflow change only: it expands no architecture authority and no implementation scope, and it authorizes no approval and no merge. The former convention that Claude never pushes or repairs is narrowed only for this owner-authorized local steward role; Claude's architecture and review chat session remains read-only. ChatGPT remains the primary implementer. Before /ship runs: the implementation is already committed on the pull request branch, the Draft pull request exists, the working tree is clean, and the pre-Ship head SHA is recorded. Every commit created or pushed by /ship must be independently reviewed by ChatGPT before Claude's final exact-head verdict covers that head. /ship work stops and returns to the chaired process for any out-of-scope file, frozen-file change, weakened or removed test, or change to a schema, identity, persistence rule, governance rule or capability; a failing check is not permission to change whatever makes it pass. Robert retains final merge authority. Repository-wide Claude Ship automation, Claude Approvals, an approval-policy file, automatic approval and automatic merge are not authorized. On native Windows no continuing /ship watch is expected; the pilot records which components actually ran.
 
 ## 6. Current state (as of 2026-11-24)
 
@@ -145,6 +146,12 @@ Completed:
 - Phase Transition Hold released by the owner on 2026-11-24. The owner approved a two-layer data architecture (Layer 1 source dataset; Layer 2 interpreted dataset), directed that Layer 1 be proven first, and selected the Source Dataset Provenance Phase.
 - Source Dataset Provenance Phase, Sprint 1 (immutable source membership, ADR-018) accepted, PR #53 (main 8a3c331). Tests: Linux 450 run, 0 skips. Windows 450 run, 4 expected skips (owner-reported). Focused source dataset tests 22 of 22. Thirty mutation checks detected on both ledgers under the owner-approved revised SM19; the original SM19 survived because of a mutation-specification defect, and the production code was not changed.
 - Source Dataset Provenance Phase Exit Record: docs/source-dataset-provenance-phase-exit.md. Sprint 1 and the phase are closed by the owner's merge of the pull request that adds that record. The record exists on main only if the owner merged it.
+- Source Dataset Provenance Phase accepted and closed by the owner's merge of PR #54 (main 3c73665). Reviewed before merge. The exit record's condition 7 row was written before that merge and reads as pending; the merge is the acceptance.
+- Dataset-bound reader feasibility (planning only, 2026-11-24): the existing Source Dataset verification and the existing governed reader already compose. No new persistent record, no Core change and no new runtime code is required. No durable dataset-to-run binding exists or is required, and selection of a particular Source Dataset record is not a current requirement.
+- Dataset-reader composition guard, PR #55 (main 42bee08): one new test file and one appended documentation section; no runtime change. Independently run by Claude on Linux: focused guard tests 12 run, 0 failures, 0 errors, 0 skips; full suite 462 run, 0 failures, 0 errors, 0 skips; seven guard sensitivity checks detected on both ledgers. Owner-reported Windows gate (Claude did not observe it): focused 12 run, 0 failures, 0 errors, 0 skips; full suite 462 run, 0 failures, 0 errors, 4 expected Phase 5 skips. Reviewed before merge.
+- Evaluation Contract feasibility (planning only, 2026-11-24): chair verdict SATISFIED for the synthetic contract. No production evaluation engine, no new persistent evaluation record and no permanent guard pull request is justified. Ripley One was evaluator-only for that workstream; that is not permanent doctrine.
+- Historical Order and Pre-Result Commitment feasibility (planning only, 2026-11-24): chair verdict SATISFIED. No global ordering infrastructure, no new record, no Core change and no storage change is justified. No external-witness implementation is authorized.
+- Claude Code /ship supervised steward pilot approved by the owner (2026-11-24). See section 5, standing rules.
 
 Advisory CI:
 - One advisory Linux check runs on pull requests targeting main: pinned SDK verified, full suite in a disposable copy, red on any failure, error, skip, unexpected success or zero tests. It uses a read-only token and no secrets. It is not a merge gate; no branch protection is configured. It is not a network sandbox and does not run Windows.
@@ -243,9 +250,21 @@ Source dataset, Layer 1 (ADR-018):
 - Creation verifies every member, all-or-nothing, and on a repeat returns the existing record without writing. Verification is read-only and rebuilds its answer from ledger records and stored bytes.
 - A verified Source Dataset is an integrity result, not a trust, quality, approval, interpretation, availability-time, consent, or fitness-for-use result.
 - It does not: have any consumer (no Task accepts a source dataset); carry a name, a time, lineage or retraction; make an "as of T" claim; guarantee uniqueness under concurrent writers; resolve ambiguity automatically (any second record claiming the same membership hash needs manual inspection); allow more than 16 members; use a model, provider, network, tool or agent; touch Layer 2. See docs/source-datasets.md.
+- A caller can run the existing governed reader over a source dataset's members with existing operations: verify the dataset, then pass its members as capture references. The run's Snapshot then carries the same references, from which the same membership identity can be recomputed. Nothing persisted names a source dataset on a run; a dataset created after a run matches it equally well; equal evidence is not proof of selection, timing or permission. Pinned by tests/test_dataset_reader_composition.py. See docs/source-datasets.md.
+
+Evaluation evidence model (feasibility findings of 2026-11-24; nothing is implemented):
+- Evaluation Contract. Before any result is looked at, these are fixed: the case, the target, the outcome and label rule, the population, the partition, the information policy, the baseline, the metric and the acceptance rule. An outcome is what happened under the target's resolution rule; a label is the governed value assigned under a labeling rule and is not inherently the outcome; an approved interpretation is not automatically ground truth.
+- Three trust levels, none implying another: declaration consistency; independent evidence verification; historically authenticated evidence. Validating a contract shows declaration consistency only. It does not show that declarations are true, that information was really available, that access history is complete, that criteria were fixed before results, or that a label is correct.
+- A hash establishes content identity. It does not establish when an artifact existed, when criteria became effective, who authorized them, or whether they preceded results.
+- Three boundaries, none implying the next. Boundary 1, content commitment: available through existing hashing. Boundary 2, durable Ripley admission precedence: not generally established by current generic ledger behavior. Boundary 3, external prospective validity: not establishable by Ripley alone.
+- A verified hash citation establishes commitment to referenced content identity. It does not independently establish possession of the referenced content, prior durable admission into Ripley, authorization, referential completeness, continued existence, trusted time or external availability. A record citing a hash can be admitted before the record it cites, and a cited record can later be absent.
+- The ledger's wall-clock time, record id and SQLite sequence are not covered by the record content hash. A trustworthy internal clock is not required for a relative before-and-after claim. A later record that cites both a prediction and an outcome does not show which came first.
+- Completeness is not needed to show that one prediction preceded one outcome. It is needed for population-level performance, coverage, aggregate evaluation and any claim of no selective reporting. No completeness mechanism exists or is authorized.
+- Evidence standard by audience: internal development claims may rely on a trusted Ripley process with stated limits; customer-facing evaluation claims need durable internal evidence and completeness appropriate to the claim; skeptical external-auditor or real prospective claims need independent external evidence. An adequate future attestation must be outside the control of anyone who benefits from the prediction, bind the prediction's exact content identity to evidence verifiably earlier than the outcome-visibility boundary, and be checkable later without trusting Ripley or its operator. No mechanism is chosen.
+- The three feasibility artifacts are held outside the repository; this file records their durable conclusions and identities only: ripley-dataset-bound-reader-feasibility.md (SHA-256 65ce3040da305405e9237105e57cd42ccd338ed48019679c19a4d5cb899e652f); ripley-evaluation-contract-feasibility-r1.md (SHA-256 6e8d299dd25c9281ae5ba511de16223824773ebde162396e5d9c00725b938178); ripley-historical-order-feasibility-r2.md (SHA-256 a4660610fb73757d8b0eaa100e8255ef116309759aa4123cbb1335b515d351a0).
 
 Reviewed code baseline:
-Main is 8a3c331df61067e0338809f298d2a882ba53993d (merge of PR #53). Its tree is identical to commit 71b2f59, which Claude reviewed. It supersedes faeabd3 (merge of PR #49) as the reviewed code baseline; PR #50, PR #51 and PR #52 changed documentation only. Against a7e1598 it adds ripley/datasets.py and tests/test_source_dataset.py and changes no existing code or test. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
+Main is 42bee083f876152fcab1bd235c13de6b92a5e6dc (merge of PR #55). Its tree is identical to commit bac3f3d, which Claude reviewed. The reviewed runtime code is unchanged since 8a3c331 (merge of PR #53): PR #54 changed documentation only, and PR #55 added one test file and one documentation section. The suite is 462 tests. The reviewed CI tooling is unchanged since PR #38: runner SHA-256 95b5dfd0...5643, workflow SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
 
 Blocked:
 - Live dispatch #3 is paused and NOT authorized. Provider support replied on 2026-11-24: it could not retrieve the error text or confirm the cause. Live replay is not authorized.
@@ -284,6 +303,8 @@ Known small items:
 
 Owner decision needed:
 - Selection of the next phase. The Source Dataset Provenance Phase is closed and a closed phase does not start the next one. No next phase is chosen and no next-phase work is authorized. Layer 2 is deferred and is not automatically next. Deferred items and their classifications are in docs/source-dataset-provenance-phase-exit.md, section 12, and docs/governed-reader-path-phase-exit.md, section 11; none is authorized.
+- Which evidence audience the first real evaluation must satisfy (internal development, customer-facing, or skeptical external auditor), and whether a real evaluation may begin with external prospective validity unmet and the limit stated.
+- Whether to configure branch protection for main so that owner-only merge is enforced by GitHub and not only by convention. None is configured.
 - Whether a person may resubmit a blocked reader task. Permitted now because the reader is local and free (ADR-016 decision 25). Must be decided again before any reader that costs money.
 - Repository visibility, licensing and any commercial workstream. Each requires a separate owner decision. None is made by the owner direction recorded in section 1.
 - Whether capture should ever acquire over a network. Blocked pending an owner decision on sources and a rights classification.
@@ -295,9 +316,12 @@ Gates before specific future work (none of this work is authorized; each gate ap
 - Any reader that costs money: the rule that a person may resubmit a blocked reader task must be decided again (ADR-016 decision 25).
 - Any model-backed reader, or any reader that is not first-party deterministic code: its own ADR and owner decision; its instruction or prompt identity must be explicitly pinned and governed; and process and output containment must be reconsidered, because output is measured after a process ends and process isolation is not a sandbox.
 - Any approval that authorizes an action, or any consumer of approved readings: authenticated identities must be decided first. Labels are not identities.
+- Any real predictive evaluation: independently verifiable evidence that every permitted input was admissibly available before the prediction was durably fixed, and that the prediction was durably fixed before the outcome became known within the applicable evaluation information boundary. Late admission of an already-known outcome does not make an evaluation prospective. Ripley cannot establish the second point alone. No admission-order mechanism and no external witness is authorized.
+- Layer 2: it becomes a candidate when a selected consumer requires reusable, independently identified, governed interpreted observations beyond the existing Task-bound reader path; extraction from source text alone does not establish that necessity.
 
 Next round-table topics:
 - Selection of the next phase, when the owner calls for it.
+- Claude Code /ship Pilot #1: its report and the recommendation to keep the pilot, modify the policy or stop.
 - FI-001 after the provider support reply: whether any bounded diagnostic re-send is ever to be considered. None is authorized.
 - Timing of the source-reader ADR.
 
@@ -341,6 +365,11 @@ Next round-table topics:
 | 2026-11-24 | Phase Transition Hold released by the owner; two-layer data architecture approved; Source Dataset Provenance Phase selected (Layer 1 only) | docs/source-dataset-provenance-phase-exit.md, sections 2 and 4 |
 | 2026-11-24 | Source Dataset Provenance Phase, Sprint 1 immutable source membership, ADR-018 | PR #53, docs/source-datasets.md |
 | 2026-11-24 | Source Dataset Provenance Phase Exit Record (Sprint 1 and the phase closed by the owner's merge of the record) | docs/source-dataset-provenance-phase-exit.md |
+| 2026-11-24 | Source Dataset Provenance Phase accepted and closed by owner merge. Reviewed before merge | PR #54 |
+| 2026-11-24 | Dataset-bound reader feasibility closed: existing primitives compose; no new capability required. Dataset-reader composition guard merged (tests and documentation only) | PR #55, docs/source-datasets.md |
+| 2026-11-24 | Evaluation Contract feasibility closed (planning only): synthetic contract feasible; no production engine or record justified | Section 6, "Evaluation evidence model" |
+| 2026-11-24 | Historical Order and Pre-Result Commitment feasibility closed (planning only): three-boundary evidence model; no ordering infrastructure justified | Section 6, "Evaluation evidence model" |
+| 2026-11-24 | Claude Code /ship supervised steward pilot approved by the owner; the "Claude never pushes or repairs" convention narrowed for that role only | Section 5, standing rules |
 
 ## 8. Future add-ons (ideas only)
 
@@ -404,6 +433,7 @@ Infrastructure candidates raised for Sprint 7 and later:
 | Governed Reader Path Phase exit record | docs/governed-reader-path-phase-exit.md |
 | Source datasets (Layer 1) | docs/source-datasets.md, docs/decisions/source-dataset-sprint-1-adrs.md |
 | Source Dataset Provenance Phase exit record | docs/source-dataset-provenance-phase-exit.md |
+| Dataset-reader composition guard | tests/test_dataset_reader_composition.py, docs/source-datasets.md |
 
 ## 10. Keeping this file current
 
