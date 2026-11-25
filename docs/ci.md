@@ -158,3 +158,132 @@ TRANSMISSION DIFFERENCE, NONBLOCKING
 The advisory check remains advisory.
 
 Full Sprint 9 evidence and retrospective are recorded in docs/capture.md.
+
+## Windows expected-skip gate
+
+This section records the opt-in expected-skip argument added to the advisory runner. It is development tooling, not Ripley One runtime capability.
+
+### Default invocation is unchanged
+
+Run with no arguments, the runner behaves exactly as before: any skip fails the run. Hosted Linux CI uses this default invocation, in self-check mode and in default mode only. The workflow file `.github/workflows/tests.yml` did not change in this pull request. Default-mode standard output is unchanged line for line, including the `CI SUMMARY`, `SKIPPED` and `CI RESULT` lines.
+
+### The optional argument
+
+The runner accepts exactly three forms: no arguments (default mode), `--self-check` alone, or one or more pairs `--expected-skip TEST_ID` (configured mode). The flag and its value are two separate arguments; the joined form `--expected-skip=TEST_ID` is refused. The pair is repeated once per expected skip, and the order of pairs has no meaning. The command line is the only source of the expected set. No environment variable, file or platform detection supplies or alters it, and the runner contains no list of approved tests.
+
+A value must be an ordinary test identity: three or more parts joined by single full stops, each part starting with an ASCII letter or underscore and continuing with ASCII letters, digits or underscores. Class-setup and sub-test identities are refused.
+
+### Owner-approved Windows identities
+
+These four identities are approved by the owner for the Windows gate:
+
+```text
+test_isolation.MemoryIsolationTests.test_p5_04_parent_kills_unresponsive_child
+test_isolation.MemoryIsolationTests.test_p5_08_grace_response_and_post_kill_drain
+test_isolation.SQLiteIsolationTests.test_p5_04_parent_kills_unresponsive_child
+test_isolation.SQLiteIsolationTests.test_p5_08_grace_response_and_post_kill_drain
+```
+
+They were approved before a Windows run was observed, subject to confirmation by the real Windows gate. The set changes only by owner decision, never from what a run skipped.
+
+### Exact-match semantics
+
+The identity of a skipped test is the exact string returned by the `id()` method of the test object that unittest recorded as skipped. Comparison is exact, case-sensitive and order-independent. There is no count, prefix, suffix, wildcard, pattern or reason matching, and no trimming or case-folding. The run is acceptable only when no expected identity is missing, no skipped identity is unexpected, and no identity is skipped more than once. A renamed test or a newly skipped test therefore fails the gate until the owner re-approves the set.
+
+Failures, errors, unexpected successes and a zero-test run still make a configured run unacceptable even when the skips match.
+
+### Skip reasons are diagnostic only
+
+Each skip's reason text is printed for diagnosis. It is never compared, and an equal reason never grants a match.
+
+### Output contract
+
+In configured mode the lines appear in this order:
+
+1. `CI SUMMARY: run=N failures=N errors=N skipped=N`, in the same format as default mode.
+2. One `SKIPPED: TEST: REASON` line per recorded skip, printed whether or not the skips match. Every skip stays visible.
+3. One `EXPECTED SKIP: TEST_ID` line per expected identity, sorted ascending, always printed.
+4. One `MISSING EXPECTED SKIP: TEST_ID` line per expected identity that did not skip.
+5. One `UNEXPECTED SKIP: TEST_ID` line per skipped identity that was not expected.
+6. One `DUPLICATE SKIP: TEST_ID` line per identity that skipped more than once.
+7. The result line.
+
+Acceptable result line, where N is the number of expected identities (with the four approved identities this is exactly `CI RESULT: PASSED (4 expected skips)`):
+
+```text
+CI RESULT: PASSED (N expected skips)
+```
+
+Unacceptable result line, with reasons joined by a semicolon and a space, for example:
+
+```text
+CI RESULT: FAILED (skips differ from expected: 1 missing, 0 unexpected, 0 duplicated)
+```
+
+The reasons appear in this order: zero tests ran; failures; errors; the skip-difference reason; unexpected successes. The skip-difference reason always prints all three numbers.
+
+### Refusals
+
+A refused invocation prints exactly two lines and exits with status 2. No test is discovered or run, and no `CI SUMMARY`, `SKIPPED` or `CI RESULT` line is printed.
+
+```text
+ARGUMENT REFUSED: REASON
+usage: ci_tests.py [--self-check | --expected-skip TEST_ID ...]
+```
+
+REASON is one of five fixed strings:
+
+- `--self-check cannot be combined with other arguments`
+- `unsupported argument`
+- `missing value for --expected-skip`
+- `malformed expected skip`
+- `duplicate expected skip`
+
+Refused values are not echoed, because an echoed value could contain a line break and forge a result line in captured evidence.
+
+### Windows three-run gate
+
+Performed by the owner on the exact final pull-request head, with the pinned SDK installed, in Command Prompt from the repository root. Output files are written outside the checkout. The last command is one line.
+
+```text
+set PYTHONUTF8=1
+
+python -B -m unittest discover -s tests -v 1> "%TEMP%\ripley-gate-run1.txt" 2>&1
+echo RUN1 EXIT %ERRORLEVEL%
+
+python -B .github\scripts\ci_tests.py --self-check
+echo SELFCHECK EXIT %ERRORLEVEL%
+
+python -B .github\scripts\ci_tests.py 1> "%TEMP%\ripley-gate-run2.txt" 2>&1
+echo RUN2 EXIT %ERRORLEVEL%
+
+python -B .github\scripts\ci_tests.py --expected-skip test_isolation.MemoryIsolationTests.test_p5_04_parent_kills_unresponsive_child --expected-skip test_isolation.MemoryIsolationTests.test_p5_08_grace_response_and_post_kill_drain --expected-skip test_isolation.SQLiteIsolationTests.test_p5_04_parent_kills_unresponsive_child --expected-skip test_isolation.SQLiteIsolationTests.test_p5_08_grace_response_and_post_kill_drain 1> "%TEMP%\ripley-gate-run3.txt" 2>&1
+echo RUN3 EXIT %ERRORLEVEL%
+```
+
+Expected: Run 1 exits 0 with OK and skipped=4; the self-check exits 0 with `SELF-CHECK PASSED`; Run 2 exits 1 with `CI RESULT: FAILED (4 skipped)`; Run 3 exits 0 with `CI RESULT: PASSED (4 expected skips)` and no MISSING, UNEXPECTED or DUPLICATE line. If Run 3 fails because the observed identities differ, the command is not changed to match what was observed; the observed identities go to the owner.
+
+### Authority
+
+The Windows gate remains owner evidence, not merge authority. The check remains advisory and authorizes no dispatch, merge or deployment.
+
+### Commit-1 runner identity
+
+The commit-1 runner is `.github/scripts/ci_tests.py` as physically published in commit 1, `021ec50b83a04d79131b7f0ee1df43cae7f9a9df`, and retrieved from GitHub at that exact commit:
+
+- Byte count: 15,581
+- SHA-256: `23f1457f8ff4d8413817f7d147008e3ee8bc465a905005e41408dd0c05465436`
+
+This is the commit-1 runner hash. It is not asserted as the runner hash of any later head. The Sprint 9 runner SHA-256 recorded earlier in this file (`95b5dfd04e30938e94b6835b52aecfdd55a658c4018a4c74972f8cf207675643`) is historical.
+
+### Evidence for this change
+
+| Evidence | Source | Recorded evidence |
+|---|---|---|
+| Baseline | Implementer-reported | main at `41ba4cba5bcd46d5c062ea0aa7ae36d2b9541250`; committed runner, workflow and this file matched the assigned byte counts and SHA-256 values. |
+| Published commit-1 runner | Implementer-reported | Retrieved from GitHub at commit 1; byte-identical to the intended runner; 15,581 bytes; SHA-256 above. |
+| Local gates | Implementer-reported | Run on Windows 11 by local Claude Code in a disposable copy, Python 3.13.9, anthropic 2.9.0, proxy variables unset. No Linux environment was available locally. Self-check: exit 0, `SELF-CHECK PASSED`; its first 25 lines byte-identical to the base runner's. Default mode: 462 run, 0 failures, 0 errors, 4 skipped, exit 1, `CI RESULT: FAILED (4 skipped)`; standard output identical to the base runner's on the same tree. Configured mode with the four approved identities: exit 0, four `EXPECTED SKIP` lines, no MISSING, UNEXPECTED or DUPLICATE line, `CI RESULT: PASSED (4 expected skips)`. `--verbose`: exit 2 with exactly the two refusal lines. |
+| Hosted, commit 1 | Hosted | [Run 45549077171](https://github.com/Ibmcleaner/Ripley-1/actions/runs/45549077171), as reported by the implementer from the run log: success; proposal head `021ec50b83a04d79131b7f0ee1df43cae7f9a9df`; tested merge commit `cdc58754d3758fa8ce772c17690f0929c78b536d`; anthropic 2.9.0; `SELF-CHECK PASSED`; `CI SUMMARY: run=462 failures=0 errors=0 skipped=0`; `CI RESULT: PASSED`; checkout unchanged. |
+| Hosted, final head | Hosted | PENDING |
+| Independent reproduction of L1 to L9 and mutation checks | Claude-reproduced | PENDING |
+| Windows three-run gate | Owner Windows | PENDING |
