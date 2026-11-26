@@ -1,5 +1,3 @@
-UNSIGNED DRAFT — NOT LIVE AUTHORIZATION
-
 # Phase 6D — Owner authorization for live dispatch #3 (diagnostic)
 
 - Owner: Robert Legorreta, Cyrus Forge Systems, LLC
@@ -24,7 +22,7 @@ UNSIGNED DRAFT — NOT LIVE AUTHORIZATION
 - Budget: exactly ONE dispatch (RIPLEY_PILOT_DISPATCH_BUDGET=1); no dispatch_authorization ledger record will be written
 - Anthropic console at authorization: organization monthly spend limit $500; Default workspace monthly spend limit $5; spend this month $0.00; credit balance $20.00; auto-reload ON (threshold below $5; target balance $20); promotional credit shown $216.37 — owner confirmed and accepted these account conditions for the single bounded diagnostic on 2026-11-26.
 - Credential: RIPLEY_ANTHROPIC_API_KEY in Windows User scope, set via the environment-variables GUI; never in shell history, chat, or repository
-- Credential owner fact: Option B of the governing plan, section 9 — owner confirmed that the current Windows User-scope credential matches the complete original secret, not an abbreviated provider-console display.
+- Credential owner fact: Option B of the governing plan, section 9 — owner confirmed that the current Windows User-scope credential was established from the complete original secret, not an abbreviated provider-console display.
 - Pre-execution gate: section 7 of the governing plan, completed in one fresh Windows PowerShell session, including the replacement credential-check procedure (not the historical commands), the tracked-change and record-identity check, the offline preflight with expected-head, and the local-state and record checks
 - Live gates: RIPLEY_PROVIDER_TRANSPORT=live, RIPLEY_LIVE_DISPATCH=1, RIPLEY_PILOT_DISPATCH_BUDGET=1 — session-only, set immediately before the run, removed by closing the window
 - Governing records: ADR-010 revision 11; the governing plan; this record
