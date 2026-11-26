@@ -3,7 +3,7 @@ UNSIGNED DRAFT — NOT LIVE AUTHORIZATION
 # Phase 6D — Owner authorization for live dispatch #3 (diagnostic)
 
 - Owner: Robert Legorreta, Cyrus Forge Systems, LLC
-- Date signed (CT): ____________
+- Date signed (CT): __11/26/26__________
 - Valid only on: 2026-11-26, and not after 5:00 PM Central Time on that date. Start as soon as every approved gate is satisfied; do not wait until the cutoff.
 - Purpose: one diagnostic dispatch to test the Sprint 5 repair against the live provider and, if it is rejected, to record whatever error type and message the provider supplies. This is not Phase 6E and not an NFL result.
 - Governing plan: ripley-phase-6d-diagnostic-dispatch-3-plan-release-candidate-r1.md, 50,485 bytes, SHA-256 3fbe809b36d415dafd517fe0b882e9dbe99abd388cc97d8793f8213c5817f4a1; approved by the owner on 2026-11-26 (ACT 1).
@@ -41,4 +41,4 @@ This record is valid only on the date and before the time written above. It does
 
 A further dispatch requires a new record.
 
-Signed: ____________
+Signed: __Robert Legorreta__________
