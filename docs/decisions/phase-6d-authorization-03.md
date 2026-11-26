@@ -4,7 +4,7 @@ UNSIGNED DRAFT — NOT LIVE AUTHORIZATION
 
 - Owner: Robert Legorreta, Cyrus Forge Systems, LLC
 - Date signed (CT): ____________
-- Valid only on: ____________, and not after ____________ Central Time on that date
+- Valid only on: 2026-11-26, and not after 5:00 PM Central Time on that date. Start as soon as every approved gate is satisfied; do not wait until the cutoff.
 - Purpose: one diagnostic dispatch to test the Sprint 5 repair against the live provider and, if it is rejected, to record whatever error type and message the provider supplies. This is not Phase 6E and not an NFL result.
 - Governing plan: ripley-phase-6d-diagnostic-dispatch-3-plan-release-candidate-r1.md, 50,485 bytes, SHA-256 3fbe809b36d415dafd517fe0b882e9dbe99abd388cc97d8793f8213c5817f4a1; approved by the owner on 2026-11-26 (ACT 1).
 - Owner decision recorded here (ACT 2), decided 2026-11-26: the pause on dispatch #3 is lifted for exactly one confirmed execution attempt. The freeze on the provider implementation, prompt, packet, schema, model, SDK pin, request settings, retry settings and correction budget remains in force and nothing in them is changed for this dispatch.
@@ -22,9 +22,9 @@ UNSIGNED DRAFT — NOT LIVE AUTHORIZATION
 - Ledger: pilot/6d-dispatch-03.sqlite — a new file that must not exist before the run. No other ledger path may be used. The ledgers of dispatches #1 and #2 are retained unmodified as evidence.
 - Interpreter: .\.venv6\Scripts\python.exe invoked directly; no activation script and no bare python
 - Budget: exactly ONE dispatch (RIPLEY_PILOT_DISPATCH_BUDGET=1); no dispatch_authorization ledger record will be written
-- Anthropic console at authorization: workspace spend limit ______; spend this month ______; credit balance ______; auto-reload ______ — owner confirmed ____________
+- Anthropic console at authorization: organization monthly spend limit $500; Default workspace monthly spend limit $5; spend this month $0.00; credit balance $20.00; auto-reload ON (threshold below $5; target balance $20); promotional credit shown $216.37 — owner confirmed and accepted these account conditions for the single bounded diagnostic on 2026-11-26.
 - Credential: RIPLEY_ANTHROPIC_API_KEY in Windows User scope, set via the environment-variables GUI; never in shell history, chat, or repository
-- Credential owner fact: Option ____ of the governing plan, section 9
+- Credential owner fact: Option B of the governing plan, section 9 — owner confirmed that the current Windows User-scope credential matches the complete original secret, not an abbreviated provider-console display.
 - Pre-execution gate: section 7 of the governing plan, completed in one fresh Windows PowerShell session, including the replacement credential-check procedure (not the historical commands), the tracked-change and record-identity check, the offline preflight with expected-head, and the local-state and record checks
 - Live gates: RIPLEY_PROVIDER_TRANSPORT=live, RIPLEY_LIVE_DISPATCH=1, RIPLEY_PILOT_DISPATCH_BUDGET=1 — session-only, set immediately before the run, removed by closing the window
 - Governing records: ADR-010 revision 11; the governing plan; this record
