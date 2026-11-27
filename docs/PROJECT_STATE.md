@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-25, against main 9402b5b (PR #57).
+Last updated: 2026-11-27, against main 56112bf (PR #60).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -285,13 +285,13 @@ Release Gate Evidence proof (Reference Workload #1; completed 2026-11-25; nothin
 - The proof folder, C:\RipleyProof on the owner's computer, holds the only copy of the proof ledger and store. It is owner-side evidence and is not repository content. This file records identities only: ripley-release-gate-evidence-proof-plan-r1.md (SHA-256 7ac6857c41daf7c7a5451b90d2ddc28d8886087d8f95d81c5636ca696250f181); ripley_release_gate_proof_pr57.py (SHA-256 38e8e29960d664cad03ae890c14192e7d3a4b68cb03919d7b8d4123fbfe05c3c); gate-PR57-e3bf6f2-run3.txt (2,118 bytes; SHA-256 8982870ffb84c3c4ef3d204fc734da09e940daaf2d4f954cd7acdd1fb414c46a); review-package.json (SHA-256 5a99d9c78c3008fb1b12dcfd578b1e89b22efb7518edf4c24619e3c45fc71f29); review-decisions.json (SHA-256 10065e2849f664d68f013dfc17aab2daf7d639d8ae8a8ca4b572e90fb7423590); proof-report.txt (SHA-256 6c8c60dd2ff848ca0135b887dcafd3fab8e244153487158e52f6787137de62f7).
 
 Reviewed code baseline:
-Main is 9402b5ba8e09f1b90491ade293a64018d6fe33d0 (merge of PR #57). Its tree is identical to commit e3bf6f2, which Claude reviewed. The reviewed runtime code is unchanged since 8a3c331 (merge of PR #53): PR #54 and PR #56 changed documentation only, PR #55 added one test file and one documentation section, and PR #57 changed the advisory runner and docs/ci.md. The suite is 462 tests. The advisory runner was changed and reviewed in PR #57: 15,581 bytes, SHA-256 23f1457f...5436. The workflow is unchanged since PR #38: SHA-256 68b451b8...c239. The provider path is proven against mock transport only; live validation has not been performed. None of these statements authorizes a dispatch.
+Main is 56112bf7a8700b4c6221c2a66e800a772cd0f442 (merge of PR #60). The tree of 9402b5ba8e09f1b90491ade293a64018d6fe33d0 (merge of PR #57) is identical to commit e3bf6f2, which Claude reviewed. The reviewed runtime code is unchanged since 8a3c331 (merge of PR #53): PR #54 and PR #56 changed documentation only, PR #55 added one test file and one documentation section, and PR #57 changed the advisory runner and docs/ci.md. PR #58, PR #59 and PR #60 changed documentation only. The suite is 462 tests. The advisory runner was changed and reviewed in PR #57: 15,581 bytes, SHA-256 23f1457f...5436. The workflow is unchanged since PR #38: SHA-256 68b451b8...c239. At that reviewed baseline the provider path had only mock acceptance evidence. Dispatch #3 later observed live acceptance and validation once on 2026-11-27 (see below). None of these statements authorizes a dispatch.
 
 Blocked:
-- Live dispatch #3 is paused and NOT authorized. Provider support replied on 2026-11-24: it could not retrieve the error text or confirm the cause. Live replay is not authorized.
-- Two authorized live dispatches have been used. Neither produced model output (#1 auth_rejected, since remediated; #2 HTTP 400).
-- Phase 6E has not started.
-- The cause of the HTTP 400 (FI-001) is unconfirmed. The historical schema defect is proven against the provider's documented rules; its repair is verified offline and untested live. The available FI-001 evidence does not establish a context, memory or retrieval cause. FI-001 alone is not a reason to add retrieval, vector storage or caching. FI-001 is separate from the Source Dataset Provenance Phase.
+- Live dispatch #3 completed on 2026-11-27 under the re-dated owner authorization; the November 26 window expired unused. The authorization is consumed; no second invocation, retry or fourth dispatch is authorized. The frozen request returned a result once, with validation passed against the existing rules and task pending_owner_approval; no owner approval or pilot grade has been made. See docs/pilot/6d-dispatch-03.md. Evidence is owner-reported Windows execution and read-only inspection; the documentation author did not inspect the raw ledger or model answer.
+- Three authorized live dispatches have been used (#1 auth_rejected, since remediated; #2 HTTP 400; #3 completed). Historical raw ledgers #1/#2 are UNLOCATED, not proven destroyed. The pilot folder was absent and recreated empty with owner/Chair approval on 2026-11-26; cause unknown. Dispatch #3 original and preserved copy have identical owner-reported SHA-256; paths and hash are in its evidence record.
+- Stage 6D is not yet dispositioned; Stage 6E is not yet dispositioned; Phase 6 remains open. Foundation Exit remains held and NFL Worker/agent implementation remains paused under owner direction.
+- The cause of the HTTP 400 (FI-001) remains inferred, not directly confirmed. The historical schema defect is proven against the provider's documented rules; its repair is verified offline and live recovery observed once. The available FI-001 evidence does not establish a context, memory or retrieval cause. FI-001 alone is not a reason to add retrieval, vector storage or caching. FI-001 is separate from the Source Dataset Provenance Phase.
 
 Frozen by owner direction:
 - Provider request, prompt, model, schema and dispatch logic.
@@ -336,7 +336,7 @@ Owner decision needed:
 - Whether and when the advisory check becomes a required check. Not decided.
 
 Gates before specific future work (none of this work is authorized; each gate applies only if that work is later proposed):
-- Any live provider work: FI-001 and any new provider evidence must be reconsidered first. FI-001 is unresolved, the provider path has never produced model output, Dispatch #3 is paused and not authorized, and Phase 6E has not started.
+- Any live provider work: FI-001 and new provider evidence must be reconsidered first. Dispatch #3 observed live recovery once and consumed its authorization; historical attribution remains inferred. Stage 6D and Stage 6E remain undispositioned. No further dispatch is authorized.
 - Any reasoning that costs money: the reasoning envelope (ADR-015) must first be reconciled with dispatch governance (ADR-010).
 - Any reader that costs money: the rule that a person may resubmit a blocked reader task must be decided again (ADR-016 decision 25).
 - Any model-backed reader, or any reader that is not first-party deterministic code: its own ADR and owner decision; its instruction or prompt identity must be explicitly pinned and governed; and process and output containment must be reconsidered, because output is measured after a process ends and process isolation is not a sandbox.
@@ -348,7 +348,7 @@ Gates before specific future work (none of this work is authorized; each gate ap
 Next round-table topics:
 - Selection of the next phase, when the owner calls for it.
 - What the Release Gate Evidence proof showed, and whether any capability now has a real consumer.
-- FI-001 after the provider support reply: whether any bounded diagnostic re-send is ever to be considered. None is authorized.
+- Phase 6 disposition after Dispatch #3: review the actual result and pending owner decision, resolve Stage 6D and Stage 6E separately, and account for historical raw ledgers UNLOCATED. No further dispatch is authorized.
 - Timing of the source-reader ADR.
 
 ## 7. History
@@ -400,6 +400,8 @@ Next round-table topics:
 | 2026-11-24 | Reference Workload #1 selected (Release Gate Evidence, existing Ripley first); necessity review found no platform implementation justified without a real consumer | Section 6 |
 | 2026-11-25 | Windows Expected-Skip Gate Hardening: exact expected-skip identities in the advisory runner (development tooling). Reviewed before merge | PR #57, docs/ci.md |
 | 2026-11-25 | Release Gate Evidence proof completed on PR #57 with existing Ripley: accepted; criteria 1 to 10 demonstrated; criterion 11 not demonstrated; nothing built | Section 6, "Release Gate Evidence proof" |
+| 2026-11-26 | Dispatch #3 signed authorization window expired unused; historical raw ledgers #1/#2 UNLOCATED; pilot folder recreated empty with owner/Chair approval | PR #59; docs/decisions/phase-6d-authorization-03.md |
+| 2026-11-27 | Re-dated authorization merged (PR #60); Dispatch #3 completed once, validation passed, pending_owner_approval; authorization consumed; Stage 6D and 6E undispositioned, Phase 6 open | docs/pilot/6d-dispatch-03.md |
 
 ## 8. Future add-ons (ideas only)
 

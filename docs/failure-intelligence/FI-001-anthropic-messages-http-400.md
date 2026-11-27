@@ -10,8 +10,8 @@ Record opened 2026-11-19. Baseline `main` 9e3bc51.
 |---|---|
 | Defect repaired | **YES — PROVEN** (a real defect against the provider's documented rules; fixed in Sprint 5, verified offline) |
 | Historical incident attributed to that defect | **NO — UNCONFIRMED** (leading hypothesis only) |
-| Recovery verified against the live provider | **NO — UNTESTED** (no live request has been made since the repair) |
-| Provider support | Awaiting human response, conversation 215476929378097 |
+| Recovery verified against the live provider | **YES — OBSERVED ONCE** (dispatch #3, 2026-11-27, returned a result that passed the existing validator; owner approval and grading pending) |
+| Provider support | Owner-reported reply 2026-11-24: original error text unavailable, conversation 215476929378097 |
 
 Every statement below carries one of four evidence levels. **Observed**: recorded by Ripley or seen directly by the owner. **Reconstructed**: produced offline by running Ripley's real request-construction code against an in-memory mock transport; it shows what the code builds, not what crossed the wire on the night. **Documented**: stated in the provider's published documentation on 2026-11-19. **Inferred**: reasoning from the other three.
 
@@ -88,12 +88,12 @@ Sources: `https://platform.claude.com/docs/en/build-with-claude/structured-outpu
 
 - **Historical cause of dispatch #2 — moderate to high, inferential.** One defect was identified, it violates a documented rule, and it is the only reconstructed body difference. The provider's stated reason was never observed.
 - **Sprint 5 repair — high.** The defect was real; the adapter-owned schema passes the structural rule; a complete schema is necessary for the feature to return usable output at all; the request is byte-stable across platforms.
-- **Current live compatibility — moderate, unobserved.** The current request satisfies every documented rule that can be checked offline. Compliance with documentation is not acceptance by the provider.
+- **Current live compatibility — observed once.** Dispatch #3 accepted the frozen repaired request and returned a result that passed the existing validator. This is not general reliability, usability or owner grading evidence.
 
 ## 7. What evidence would change the status
 
 - **Confirm directly:** provider support returns the original error message and it names the schema.
-- **Confirm by elimination (inferential):** a future, separately authorized dispatch of the current request is accepted. Because the schema is the only changed variable this would make it the cause with high confidence; it cannot exclude that the historical request failed for a transient reason.
+- **Support by elimination (inferential):** the separately authorized dispatch #3 accepted the repaired request on 2026-11-27. The schema was the only material reconstructed body difference; this strengthens the historical hypothesis but does not establish the original cause or exclude a transient or server-side condition.
 - **Displace:** support's message names something else, or a future dispatch is rejected and the provider message Ripley now records points elsewhere.
 - **Permanently unconfirmed:** support cannot retrieve the message and no future dispatch resolves it.
 
@@ -103,12 +103,12 @@ Sources: `https://platform.claude.com/docs/en/build-with-claude/structured-outpu
 - PR #27 (reviewed at 63c8f5f, merged ccb054d): schema, pre-send structural check, mock transport enforcing the same rule, provider diagnostics. Tests P6-18, P6-19, P6-20. Linux 167 OK; Windows 167 run / 163 pass / 4 expected Phase 5 skips / 0 fail; owner mock dry-run exit 0.
 - PR #28: acceptance record and schema hash.
 
-These verify the repair offline. They do not verify recovery against the live provider.
+These verified the repair offline. Separately, dispatch #3 on 2026-11-27 observed live recovery once: `observation: sent`, `remote_outcome: completed`, `pending_owner_approval`, validation passed. Provider request ID `req_011ChTms6hUogRFwaY9twKzj`. See [dispatch #3 evidence](../pilot/6d-dispatch-03.md). The historical cause remains INFERRED; the task is not owner-approved or owner-graded.
 
 ## 9. Open items
 
-1. **Provider support.** Conversation 215476929378097, escalated to a human Product Support agent on 2026-11-19, citing `req_011ChBm8QrsiEErhYw6LkrRD` and requesting the original error type and message, the rejected field or schema condition if available, and the provider's original wording. Status: awaiting response.
-2. **Dispatch #3.** Paused and unauthorized by owner direction.
+1. **Provider support.** Conversation 215476929378097, escalated to a human Product Support agent on 2026-11-19, citing `req_011ChBm8QrsiEErhYw6LkrRD` and requesting the original error type and message, the rejected field or schema condition if available, and the provider's original wording. Status: owner reports support replied on 2026-11-24 that the original error text cannot be retrieved.
+2. **Dispatch #3.** Completed once on 2026-11-27 under the re-dated authorization, now consumed. No further dispatch is authorized. Stage 6D and Stage 6E remain undispositioned; historical cause remains inferred.
 
 **Tracked separately, not FI-001 evidence:** the Default-workspace Messages log showed two entries with OK status dated Oct 20 and Oct 21, 2026. Neither request id matches dispatch #1 or #2, and the screenshot does not show which API key made them. Both dates precede the creation of the pilot key on 2026-11-17. They are an account-activity question for later security review.
 
