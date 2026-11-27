@@ -4,11 +4,11 @@ Prepared 2026-11-27. Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 ## 1. Status of this record
 
-Stage 6D accepted; Stage 6E accepted and Phase 6 closed by the owner on 2026-11-27. Final repository acceptance requires independent review of the final decision-recording delta, a passing hosted check and the owner's merge of this PR. Foundation Exit remains HELD awaiting separate owner governance decision. No new provider activity or NFL/agent work authorized.
+Stage 6D accepted; Stage 6E accepted and Phase 6 closed by the owner on 2026-11-27. Final repository acceptance completed by merge of PR #63; final hosted Linux suite SUCCESS. Foundation Exit RELEASED BY OWNER on 2026-11-27: "I release Foundation Exit." Foundation Exit release does not authorize provider activity, live dispatches, NFL Worker or agent implementation, or changes to frozen historical provider artifacts. The next governed workload requires its own approved assignment. Workload-triggered requirements and deferred findings remain tracked.
 
 ## 2. Purpose and baseline
 
-Phase 6 introduces a bounded external provider Worker, explicit paid-dispatch governance, and a frozen availability-extraction pilot. Baseline main for this candidate: `7592cd396af24190d5ce79a81bf856d003319ede` (PR #62). ADR-010 revision 12 is merged and controlling. The amendment is limited to this historical pilot; future Decision 15/16 requirements are unchanged.
+Phase 6 introduces a bounded external provider Worker, explicit paid-dispatch governance, and a frozen availability-extraction pilot. Historical pre-publication baseline: `7592cd396af24190d5ce79a81bf856d003319ede` (PR #62). Final Phase 6 merge and status-synchronization baseline: `293c0464623b854d2fe8a3b27aab34c400d0a071` (PR #63). ADR-010 revision 12 is merged and controlling. The amendment is limited to this historical pilot; future Decision 15/16 requirements are unchanged.
 
 ## 3. Exit gate evaluation
 
@@ -21,7 +21,7 @@ Phase 6 introduces a bounded external provider Worker, explicit paid-dispatch go
 | Sprint 5 | ACCEPTED — schema repair and diagnostics (PR #27), offline evidence |
 | 6D | OWNER ACCEPTED — "ACCEPT STAGE 6D"; Dispatch #3 completed once, validator passed, governed task APPROVED |
 | 6E | OWNER ACCEPTED on 2026-11-27 — documentary grade explicitly accepted, report accepted under revision 12 |
-| Phase 6 exit | CLOSED BY OWNER on 2026-11-27 — final repository acceptance awaits reviewed owner merge |
+| Phase 6 exit | CLOSED AND MERGED on 2026-11-27 — PR #63 |
 
 ## 4. Stage 6E accepted evidence
 
@@ -57,10 +57,14 @@ Historical raw ledgers #1/#2 UNLOCATED; documentary closeouts support historical
 - Earlier unrelated account-activity/security question: SEPARATELY TRACKED in FI-001.
 - Repository ignore-file issue: existing documented finding in PROJECT_STATE.md, not corrected here.
 
-## 7. Owner decisions and remaining gates
+## 7. Owner decisions, Foundation release and remaining gates
 
 Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6."
 
-Claude reviews this final decision-recording delta and exact head, hosted check must pass, and Robert's merge is the final repository acceptance act. Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED BY OWNER on 2026-11-27; final repository acceptance awaits reviewed owner merge. Foundation Exit HELD — awaiting separate owner governance decision. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.
+Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED AND MERGED (PR #63, main 293c0464623b854d2fe8a3b27aab34c400d0a071). Final hosted Linux suite SUCCESS. Foundation Exit RELEASED BY OWNER on 2026-11-27: "I release Foundation Exit."
+
+Independent Foundation certifications: Copilot COMPLETE; Claude COMPLETE; ChatGPT COMPLETE (3/3). No currently known general Foundation requirement justifies continued generic infrastructure development before the next governed workload. Generic infrastructure is CLOSED as an active workstream. Infrastructure may reopen only when a specific governed workload demonstrates a concrete missing capability that existing supported Ripley mechanisms cannot satisfy.
+
+Foundation Exit release does not authorize provider activity, live dispatches, NFL Worker or agent implementation, or changes to frozen historical provider artifacts. The next governed workload requires its own approved assignment. Workload-triggered requirements and deferred findings remain tracked. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.
 
 This exit record is not production readiness, general provider reliability, prediction readiness or authorization for a new workload.
