@@ -58,7 +58,7 @@ The hashes and stability checks are owner-side evidence relayed in the execution
 
 ## Post-call Console observation
 
-Owner-reported typed observations, approximately 10:55 AM Central on 2026-11-27:
+Owner-reported transcribed observations, approximately 10:55 AM Central on 2026-11-27:
 
 | Field | Observation |
 |---|---|
