@@ -1,6 +1,6 @@
 # Phase 6E — historical live pilot report and documentary owner grade
 
-Prepared 2026-11-27. Documentary grade explicitly accepted and Stage 6E accepted by the owner on 2026-11-27; final repository acceptance awaits reviewed owner merge. ADR-010 revision 12 is merged and controlling (PR #62). This report covers only Dispatches #1–#3.
+Prepared 2026-11-27. Documentary grade explicitly accepted and Stage 6E accepted by the owner on 2026-11-27; final repository acceptance complete (PR #63 merged). ADR-010 revision 12 is merged and controlling (PR #62). This report covers only Dispatches #1–#3.
 
 ## 1. Evidence and seven-count accounting
 
@@ -92,4 +92,4 @@ Each player had exactly one frozen packet row; practice, supersession and confli
 
 ## 6. Disposition boundary
 
-Stage 6D owner statement: "ACCEPT STAGE 6D". Documentary judgments given: 15 TRUE. Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6." Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED BY OWNER on 2026-11-27; final repository acceptance awaits reviewed owner merge. Foundation Exit HELD — awaiting separate owner governance decision. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.
+Stage 6D owner statement: "ACCEPT STAGE 6D". Documentary judgments given: 15 TRUE. Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6." Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED AND MERGED on 2026-11-27; final repository acceptance complete (PR #63 merged). Foundation Exit RELEASED BY OWNER. This release does not authorize Milestone 2A, NFL Worker or agent implementation, provider activity or changes to frozen historical provider artifacts. No further provider activity, dispatch, retry or rerun is authorized.
