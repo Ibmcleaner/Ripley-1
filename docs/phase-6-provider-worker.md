@@ -1,6 +1,6 @@
 # Phase 6 external provider Worker
 
-Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). NO LIVE PROVIDER CALL HAS BEEN MADE. 6D not authorized; 6E pending. NOT production validated.** 6D-prep artifacts present (PR #17). Sprint 5 schema/diagnostics fix ACCEPTED — Claude-reviewed at 63c8f5f; Linux 167 OK (Claude); Windows 167 run / 163 pass / 4 expected Phase 5 skips / 0 fail (owner); owner mock dry-run exited 0; merged PR #27
+Status: **ACCEPTED prototype (6B + 6C, mock transport only) — Claude-reviewed at eaaa192; executed independently on Linux (Claude, 159 OK) and Windows (owner, 159 run / 155 pass / 4 expected Phase 5 signal skips / 0 fail). Merged to main 2026-11-17 (PR #15). Stage 6D accepted by the owner on 2026-11-27 after one successful bounded live diagnostic (Dispatch #3); Stage 6E documentary judgments given under ADR-010 revision 12, report pending independent review and owner decision. Phase 6 OPEN; Foundation Exit HELD. NOT production validated.** 6D-prep artifacts present (PR #17). Sprint 5 schema/diagnostics fix ACCEPTED — Claude-reviewed at 63c8f5f; Linux 167 OK (Claude); Windows 167 run / 163 pass / 4 expected Phase 5 skips / 0 fail (owner); owner mock dry-run exited 0; merged PR #27
 
 ## Implemented boundary
 
@@ -218,7 +218,5 @@ Mock mode now enforces Anthropic's documented structural rules for structured-ou
 
 6C is accepted following Claude review and independent Linux and owner Windows execution.
 
-6D requires a separate written owner authorization for the gated live pilot and establishes
-whether the exact model/account accepts the request. 6E adds owner quality grading
-and the seven-count pilot report. Currency reporting, provider replay, additional
+6D is owner accepted following the separately authorized Dispatch #3, which established live acceptance once. No further dispatch is authorized. Stage 6E documentary grade and seven-count pilot report are prepared under ADR-010 revision 12, with owner disposition pending. Phase 6 remains open and Foundation Exit held. Currency reporting, provider replay, additional
 providers, predictions, and later deployment features retain their ADR deferrals.

@@ -14,12 +14,15 @@ Scope: approved Phase 1 documentation handoff for Ibmcleaner/Ripley-1.
 | Phase 6A ADR-010 | COMPLETE (PR #11, main a7cbfd2) |
 | Phase 6B + 6C | ACCEPTED (mock transport only; PR #12, PR #15) |
 | Phase 6D-prep (packet + runner, mock-only) | ACCEPTED (mock-only; PR #17) |
-| Phase 6D live pilot | NOT AUTHORIZED |
+| Phase 6D live pilot | ACCEPTED by owner 2026-11-27 after bounded Dispatch #3; no further dispatch authorized |
 | Phase 6D dispatch #1 | auth_rejected (failed_after_send); cause: abbreviated credential stored; remediated; no further dispatch authorized |
 | Phase 6D credential check #1 | HTTP 200, model available; dispatch #2 not authorized |
 | Phase 6D dispatch #2 | invalid_request (HTTP 400, failed_after_send); request schema fix required; no further dispatch authorized |
 | Sprint 5 — output schema + provider error diagnostics | ACCEPTED (mock-only; PR #27) |
-| FI-001 — dispatch #2 HTTP 400 root-cause analysis | Offline RCA complete. Anthropic Support responded on 2026-11-24 and could not retrieve the historical detailed error or confirm its cause. Historical cause UNCONFIRMED; historical schema defect PROVEN; repair verified offline and untested live. Not resolved. Dispatch #3 paused and unauthorized; live replay not authorized |
+| FI-001 — dispatch #2 HTTP 400 root-cause analysis | Historical schema defect PROVEN; live recovery OBSERVED ONCE through Dispatch #3; historical cause INFERRED, not directly confirmed. Provider could not retrieve historical error. No further diagnostic/provider call required for this historical pilot |
+| Phase 6D dispatch #3 | Completed once, sent, validated, governed task APPROVED; authorization CONSUMED; Stage 6D owner accepted |
+| Stage 6E | OPEN; ADR-010 revision 12 controlling; documentary field-level judgments given; evidence package awaiting independent review and owner decision |
+| Phase 6 / Foundation Exit | Phase 6 OPEN; exit candidate pending owner disposition; Foundation Exit HELD; NFL/agent implementation HOLD |
 | Cyrus Engineering Doctrine v1 | ACCEPTED by owner 2026-11-19 (docs/architecture/cyrus-engineering-doctrine.md). A standard for future ADRs and engines. Adoption does not certify that Ripley conforms; no Ripley runtime requirement is created by this document |
 | Sprint 6 — offline dispatch identity preflight | ACCEPTED (PR #31, merged fa44976). Offline only; Linux 185/0 skips, Windows 185/4 skips, preflight 12 of 12 matched. Passing it does not authorize dispatch or establish provider acceptance |
 | Sprint 7 — offline capture receipt (ADR-011) | ACCEPTED (PR #34, merged 86012c8). Offline, local-file intake only. Linux 202/0 skips, Windows 202/4 expected skips, focused capture tests 17/17. No network acquisition, no provider activity |

@@ -10,7 +10,7 @@ Record opened 2026-11-19. Baseline `main` 9e3bc51.
 |---|---|
 | Defect repaired | **YES — PROVEN** (a real defect against the provider's documented rules; fixed in Sprint 5, verified offline) |
 | Historical incident attributed to that defect | **NO — UNCONFIRMED** (leading hypothesis only) |
-| Recovery verified against the live provider | **YES — OBSERVED ONCE** (dispatch #3, 2026-11-27, returned a result that passed the existing validator; owner approval and grading pending) |
+| Recovery verified against the live provider | **YES — OBSERVED ONCE** (dispatch #3, 2026-11-27, returned a result that passed the existing validator; subsequently governed owner-approved; documentary field-level judgments given under revision 12) |
 | Provider support | Owner-reported reply 2026-11-24: original error text unavailable, conversation 215476929378097 |
 
 Every statement below carries one of four evidence levels. **Observed**: recorded by Ripley or seen directly by the owner. **Reconstructed**: produced offline by running Ripley's real request-construction code against an in-memory mock transport; it shows what the code builds, not what crossed the wire on the night. **Documented**: stated in the provider's published documentation on 2026-11-19. **Inferred**: reasoning from the other three.
@@ -103,12 +103,12 @@ Sources: `https://platform.claude.com/docs/en/build-with-claude/structured-outpu
 - PR #27 (reviewed at 63c8f5f, merged ccb054d): schema, pre-send structural check, mock transport enforcing the same rule, provider diagnostics. Tests P6-18, P6-19, P6-20. Linux 167 OK; Windows 167 run / 163 pass / 4 expected Phase 5 skips / 0 fail; owner mock dry-run exit 0.
 - PR #28: acceptance record and schema hash.
 
-These verified the repair offline. Separately, dispatch #3 on 2026-11-27 observed live recovery once: `observation: sent`, `remote_outcome: completed`, `pending_owner_approval`, validation passed. Provider request ID `req_011ChTms6hUogRFwaY9twKzj`. See [dispatch #3 evidence](../pilot/6d-dispatch-03.md). The historical cause remains INFERRED; the task is not owner-approved or owner-graded.
+These verified the repair offline. Separately, dispatch #3 on 2026-11-27 observed live recovery once: `observation: sent`, `remote_outcome: completed`, `pending_owner_approval`, validation passed. Provider request ID `req_011ChTms6hUogRFwaY9twKzj`. See [dispatch #3 evidence](../pilot/6d-dispatch-03.md). The historical cause remains INFERRED, not directly confirmed. The task was subsequently approved through the governed owner route; documentary field-level judgments were given under revision 12, not a native grade.
 
 ## 9. Open items
 
 1. **Provider support.** Conversation 215476929378097, escalated to a human Product Support agent on 2026-11-19, citing `req_011ChBm8QrsiEErhYw6LkrRD` and requesting the original error type and message, the rejected field or schema condition if available, and the provider's original wording. Status: owner reports support replied on 2026-11-24 that the original error text cannot be retrieved.
-2. **Dispatch #3.** Completed once on 2026-11-27 under the re-dated authorization, now consumed. No further dispatch is authorized. Stage 6D and Stage 6E remain undispositioned; historical cause remains inferred.
+2. **Dispatch #3.** Completed once on 2026-11-27 under the re-dated authorization, now consumed. No further dispatch is authorized. Stage 6D owner accepted; Stage 6E remains OPEN. Live recovery OBSERVED ONCE; historical November 18 HTTP 400 cause INFERRED, not directly confirmed. Provider could not recover the historical error. No additional diagnostic/provider call is required for this historical pilot.
 
 **Tracked separately, not FI-001 evidence:** the Default-workspace Messages log showed two entries with OK status dated Oct 20 and Oct 21, 2026. Neither request id matches dispatch #1 or #2, and the screenshot does not show which API key made them. Both dates precede the creation of the pilot key on 2026-11-17. They are an account-activity question for later security review.
 
