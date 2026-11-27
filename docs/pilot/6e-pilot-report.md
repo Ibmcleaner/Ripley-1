@@ -1,6 +1,6 @@
 # Phase 6E — historical live pilot report and documentary owner grade
 
-Prepared 2026-11-27. Candidate pending independent review and owner disposition. ADR-010 revision 12 is merged and controlling (PR #62). This report covers only Dispatches #1–#3.
+Prepared 2026-11-27. Documentary grade explicitly accepted and Stage 6E accepted by the owner on 2026-11-27; final repository acceptance awaits reviewed owner merge. ADR-010 revision 12 is merged and controlling (PR #62). This report covers only Dispatches #1–#3.
 
 ## 1. Evidence and seven-count accounting
 
@@ -16,7 +16,7 @@ Sources: [Dispatch #1](6d-dispatch-01.md), [Dispatch #2](6d-dispatch-02.md), [Di
 | validated | 0 | 0 | 1 | 1 |
 | native owner_graded | 0 evidenced | 0 evidenced | 0 evidenced | 0 evidenced |
 
-Separately: documentary owner grades accepted under ADR-010 revision 12 = 1. This is not a native ledger review record and does not constitute Stage 6E acceptance.
+Separately: documentary owner grades accepted under ADR-010 revision 12 = 1. This is not a native ledger review record. Stage 6E acceptance is a separate owner decision, recorded on 2026-11-27.
 
 The measures are live-mode provider Attempts only; mock runs, credential checks, refused pre-confirmation invocation, expired unused authorization and owner approval are excluded.
 
@@ -92,4 +92,4 @@ Each player had exactly one frozen packet row; practice, supersession and confli
 
 ## 6. Disposition boundary
 
-Stage 6D owner statement: "ACCEPT STAGE 6D". Documentary judgments given: 15 TRUE. Stage 6E OPEN — awaiting independent review and owner decision. Phase 6 OPEN. Foundation Exit HELD. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.
+Stage 6D owner statement: "ACCEPT STAGE 6D". Documentary judgments given: 15 TRUE. Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6." Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED BY OWNER on 2026-11-27; final repository acceptance awaits reviewed owner merge. Foundation Exit HELD — awaiting separate owner governance decision. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.

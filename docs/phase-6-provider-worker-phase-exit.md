@@ -1,10 +1,10 @@
-# Ripley One — Phase 6 Provider Worker Phase Exit Candidate
+# Ripley One — Phase 6 Provider Worker Phase Exit Record
 
 Prepared 2026-11-27. Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 ## 1. Status of this record
 
-Closeout candidate pending independent exact-head review and owner disposition. Stage 6D accepted; Stage 6E not yet accepted; Phase 6 not yet closed; Foundation Exit remains held. No new provider activity or NFL/agent work authorized.
+Stage 6D accepted; Stage 6E accepted and Phase 6 closed by the owner on 2026-11-27. Final repository acceptance requires independent review of the final decision-recording delta, a passing hosted check and the owner's merge of this PR. Foundation Exit remains HELD awaiting separate owner governance decision. No new provider activity or NFL/agent work authorized.
 
 ## 2. Purpose and baseline
 
@@ -20,10 +20,10 @@ Phase 6 introduces a bounded external provider Worker, explicit paid-dispatch go
 | 6D-prep | ACCEPTED — frozen packet and runner, mock-only (PR #17) |
 | Sprint 5 | ACCEPTED — schema repair and diagnostics (PR #27), offline evidence |
 | 6D | OWNER ACCEPTED — "ACCEPT STAGE 6D"; Dispatch #3 completed once, validator passed, governed task APPROVED |
-| 6E | OPEN — documentary grade given, report ready for independent review and owner decision |
-| Phase 6 exit | OPEN — separate explicit owner closure decision and reviewed merge required |
+| 6E | OWNER ACCEPTED on 2026-11-27 — documentary grade explicitly accepted, report accepted under revision 12 |
+| Phase 6 exit | CLOSED BY OWNER on 2026-11-27 — final repository acceptance awaits reviewed owner merge |
 
-## 4. Stage 6E candidate evidence
+## 4. Stage 6E accepted evidence
 
 [Consolidated report and documentary grade](pilot/6e-pilot-report.md). Exact owner statement: "ROWS 1–15: TRUE". Fifteen specified judgments TRUE; one documentary grade under revision 12, no native grade evidenced. The frozen packet has one row per player; practice, supersession and conflict cover only nothing-to-report cases.
 
@@ -37,7 +37,7 @@ Phase 6 introduces a bounded external provider Worker, explicit paid-dispatch go
 | validated | 0 | 0 | 1 | 1 |
 | native owner_graded | 0 evidenced | 0 evidenced | 0 evidenced | 0 evidenced |
 
-Separately: documentary owner grades accepted under ADR-010 revision 12 = 1. This is not a native ledger review record and does not constitute Stage 6E acceptance.
+Separately: documentary owner grades accepted under ADR-010 revision 12 = 1. This is not a native ledger review record. Stage 6E acceptance is a separate owner decision, recorded on 2026-11-27.
 
 Known usage subtotal: input 2222, output 521, cache read 0; #1/#2 usage UNAVAILABLE. Latency observations: #3 attempt start -> completion 8.613577 seconds; sent -> completion 4.361814 seconds; #2 dispatch sent -> task blocked approximately 0.71 seconds (non-comparable); #1 UNAVAILABLE. No distribution or aggregate statistics; no dollar figure.
 
@@ -57,8 +57,10 @@ Historical raw ledgers #1/#2 UNLOCATED; documentary closeouts support historical
 - Earlier unrelated account-activity/security question: SEPARATELY TRACKED in FI-001.
 - Repository ignore-file issue: existing documented finding in PROJECT_STATE.md, not corrected here.
 
-## 7. Remaining owner gates
+## 7. Owner decisions and remaining gates
 
-Claude independently reviews the exact candidate head. If approved, Robert must separately state "I accept Stage 6E." and "I close Phase 6." Neither decision has yet been made. Record only those actual decisions in one status-only commit on the same PR; Claude reviews the delta and final head, hosted check must pass, and Robert's merge is the final repository acceptance act. Foundation Exit remains HELD and needs separate disposition. Stage 6E OPEN — awaiting independent review and owner decision. Phase 6 OPEN. Foundation Exit HELD. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.
+Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6."
 
-This candidate is not production readiness, general provider reliability, prediction readiness or authorization for a new workload.
+Claude reviews this final decision-recording delta and exact head, hosted check must pass, and Robert's merge is the final repository acceptance act. Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED BY OWNER on 2026-11-27; final repository acceptance awaits reviewed owner merge. Foundation Exit HELD — awaiting separate owner governance decision. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.
+
+This exit record is not production readiness, general provider reliability, prediction readiness or authorization for a new workload.
