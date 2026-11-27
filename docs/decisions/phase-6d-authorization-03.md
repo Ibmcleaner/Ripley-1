@@ -1,7 +1,7 @@
 # Phase 6D — Owner authorization for live dispatch #3 (diagnostic)
 
 - Owner: Robert Legorreta, Cyrus Forge Systems, LLC
-- Date signed (CT): ____________
+- Date signed (CT): _____11/27/2026_______
 - Valid only on: 2026-11-27, and not after 5:00 PM Central Time on that date. Start as soon as every approved gate is satisfied; do not wait until the cutoff.
 - Re-dating: this record was first signed on 2026-11-26, valid that day until 5:00 PM Central. That window expired unused: no live gate was set, the runner was not started and DISPATCH was not typed. It is re-dated here by the same reviewed route, as section 7 step 9 of the governing plan allows. The earlier window gives no authority.
 - Purpose: one diagnostic dispatch to test the Sprint 5 repair against the live provider and, if it is rejected, to record whatever error type and message the provider supplies. This is not Phase 6E and not an NFL result.
@@ -41,4 +41,4 @@ This record is valid only on the date and before the time written above. It does
 
 A further dispatch requires a new record.
 
-Signed: ____________
+Signed: __Robert Legorreta__________
