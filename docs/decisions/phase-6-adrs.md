@@ -8,7 +8,7 @@ These records continue [ADR-001 through ADR-006](phase-1-adrs.md), [ADR-007](pha
 
 Status: **ACCEPTED — revision 12 (owner-approved 2026-11-27; controlling upon merge; amends Decisions 15 and 16 only for the historical Phase 6 pilot comprising Dispatches #1, #2 and #3; revision 11 amended Decisions 4 and 13 after 6D dispatch #2; Decision 14 evidence timestamps amended during 6D-prep; revision 9 amended during 6B) — drafted by Claude from the Phase 6 whiteboard; revised for thirteen Copilot corrections and three rounds of ChatGPT pre-commit findings; Decision 1 ruled by the owner 2026-11-17 after a read-only Models API confirmation; merged (PR #11 a7cbfd2; amended PR #13 200f3fc).**
 
-Implementation status: **6B and 6C accepted (PR #12, PR #15). 6D NOT AUTHORIZED — requires a separate owner record before any live dispatch. 6E not started. No live API calls are authorized by this record.**
+Implementation status: **6B and 6C accepted (PR #12, PR #15). Stage 6D accepted by the owner on 2026-11-27 following Dispatch #3. Stage 6E accepted by the owner on 2026-11-27 under revision 12, by documentary report and grade. Phase 6 closed by the owner on 2026-11-27; see docs/phase-6-provider-worker-phase-exit.md. No further live API calls are authorized.**
 
 Revision 12 (2026-11-27): **OWNER APPROVED.** Robert's exact decision: "I approve ADR-010 revision 12 as written." ADR-010 revision 12 is the controlling revision upon owner merge of the independently reviewed amendment below. This amendment concerns only the historical Phase 6 pilot (Dispatches #1, #2 and #3). It authorizes no implementation or provider activity.
 

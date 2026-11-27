@@ -100,3 +100,20 @@ R1 Appendix A row 1 applies. The frozen repaired request was accepted once; a li
 ## Evidence boundary and next gate
 
 Source: owner execution and read-only inspection evidence relayed in the Copilot/owner closeout assignment of 2026-11-27. Repository identities checked by the documentation author; raw ledger, actual model output and Console not independently accessed by that author. The task remains pending_owner_approval per supplied evidence; this publication does not approve or reject it. Stage 6D and Stage 6E disposition, seven-count accounting and owner grading remain separate gates. Phase 6 is open. No further provider activity, dispatch or NFL/agent implementation is authorized.
+
+## Subsequent governed owner decision and evidence preservation — 2026-11-27
+
+The execution-time status above is historical. The owner subsequently approved the task through Ripley's governed approval route. Approved approval record: `9f06d661-bfce-4c49-a45e-fb40defb9466`. Owner reason: "The extraction matches the packet and the diagnostic purpose was met."
+
+Stage 6D owner decision: "ACCEPT STAGE 6D".
+
+| Evidence state | SHA-256 |
+|---|---|
+| Preserved pre-owner-decision ledger | `cd5e83e27d56f7f086b8299baea631348db8af3d298d980636ed4a2af6b5bbe7` |
+| Post-owner-approval ledger | `af4a11ac3bad4ffc57cb27ec7fe1dee1aec03ebbbefc26146ac8892192b7bc17` |
+
+The post-approval preserved copy has the same reported SHA-256 as the post-approval ledger. These are distinct evidence states; the pre-decision copy remains separate. The post-approval Result ID is `8cb121b4-466b-4005-a991-72cb71445bfe`, content hash `2a9e3c2d741a3dfbd218212ec5703a512e69f0e7ed659ae02e207edc2f90b49d`; Snapshot ID is `c43444ee-a671-4e03-a482-41c12fbc6828`, content hash `24480b47c801f69705db100ac059ab03ea402ade3362339c1e8d70d7b4d3450e`. These identities and the approval outcome are supplied owner/team read-only evidence, not direct SQLite inspection by the documentation author.
+
+Claude relay text was accidentally pasted into PowerShell after preservation. PowerShell rejected it. Subsequent read-only verification established no evidence change. This was a relay/presentation issue, not a Ripley runtime failure. Relay messages are now labeled by destination.
+
+The documentary owner field-level judgments are recorded separately in [the Stage 6E pilot report](6e-pilot-report.md); no native pilot_quality_grade record is claimed. Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED BY OWNER on 2026-11-27; final repository acceptance awaits reviewed owner merge. Foundation Exit HELD — awaiting separate owner governance decision. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.
