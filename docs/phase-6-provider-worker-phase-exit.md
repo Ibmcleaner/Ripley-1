@@ -4,11 +4,11 @@ Prepared 2026-11-27. Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 ## 1. Status of this record
 
-Stage 6D accepted; Stage 6E accepted and Phase 6 closed by the owner on 2026-11-27. Final repository acceptance requires independent review of the final decision-recording delta, a passing hosted check and the owner's merge of this PR. Foundation Exit remains HELD awaiting separate owner governance decision. No new provider activity or NFL/agent work authorized.
+Stage 6D accepted; Stage 6E accepted and Phase 6 closed by the owner on 2026-11-27. Final repository acceptance is complete after owner merge of PR #63. Foundation Exit RELEASED BY OWNER: "I release Foundation Exit." No new provider activity or NFL/agent work authorized.
 
 ## 2. Purpose and baseline
 
-Phase 6 introduces a bounded external provider Worker, explicit paid-dispatch governance, and a frozen availability-extraction pilot. Baseline main for this candidate: `7592cd396af24190d5ce79a81bf856d003319ede` (PR #62). ADR-010 revision 12 is merged and controlling. The amendment is limited to this historical pilot; future Decision 15/16 requirements are unchanged.
+Phase 6 introduces a bounded external provider Worker, explicit paid-dispatch governance, and a frozen availability-extraction pilot. Historical baseline main for the exit candidate: `7592cd396af24190d5ce79a81bf856d003319ede` (PR #62). ADR-010 revision 12 is merged and controlling. The amendment is limited to this historical pilot; future Decision 15/16 requirements are unchanged.
 
 ## 3. Exit gate evaluation
 
@@ -21,7 +21,7 @@ Phase 6 introduces a bounded external provider Worker, explicit paid-dispatch go
 | Sprint 5 | ACCEPTED — schema repair and diagnostics (PR #27), offline evidence |
 | 6D | OWNER ACCEPTED — "ACCEPT STAGE 6D"; Dispatch #3 completed once, validator passed, governed task APPROVED |
 | 6E | OWNER ACCEPTED on 2026-11-27 — documentary grade explicitly accepted, report accepted under revision 12 |
-| Phase 6 exit | CLOSED BY OWNER on 2026-11-27 — final repository acceptance awaits reviewed owner merge |
+| Phase 6 exit | CLOSED AND MERGED on 2026-11-27 — final repository acceptance complete (PR #63) |
 
 ## 4. Stage 6E accepted evidence
 
@@ -61,6 +61,6 @@ Historical raw ledgers #1/#2 UNLOCATED; documentary closeouts support historical
 
 Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6."
 
-Claude reviews this final decision-recording delta and exact head, hosted check must pass, and Robert's merge is the final repository acceptance act. Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED BY OWNER on 2026-11-27; final repository acceptance awaits reviewed owner merge. Foundation Exit HELD — awaiting separate owner governance decision. NFL/agent implementation HOLD. No further provider activity, dispatch, retry or rerun is authorized.
+PR #63 has been merged by the owner; final repository acceptance is complete. Stage 6E ACCEPTED BY OWNER on 2026-11-27. Phase 6 CLOSED AND MERGED on 2026-11-27 (PR #63). Foundation Exit RELEASED BY OWNER: "I release Foundation Exit." The release does not authorize Milestone 2A, NFL Worker or agent implementation, provider activity, or changes to frozen historical provider artifacts. The next governed workload requires its own approved assignment. No further provider activity, dispatch, retry or rerun is authorized.
 
 This exit record is not production readiness, general provider reliability, prediction readiness or authorization for a new workload.

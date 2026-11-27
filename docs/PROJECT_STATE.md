@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-27, against main 7592cd3 (PR #62).
+Last updated: 2026-11-27, against main 293c0464623b854d2fe8a3b27aab34c400d0a071 (PR #63).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -285,13 +285,21 @@ Release Gate Evidence proof (Reference Workload #1; completed 2026-11-25; nothin
 - The proof folder, C:\RipleyProof on the owner's computer, holds the only copy of the proof ledger and store. It is owner-side evidence and is not repository content. This file records identities only: ripley-release-gate-evidence-proof-plan-r1.md (SHA-256 7ac6857c41daf7c7a5451b90d2ddc28d8886087d8f95d81c5636ca696250f181); ripley_release_gate_proof_pr57.py (SHA-256 38e8e29960d664cad03ae890c14192e7d3a4b68cb03919d7b8d4123fbfe05c3c); gate-PR57-e3bf6f2-run3.txt (2,118 bytes; SHA-256 8982870ffb84c3c4ef3d204fc734da09e940daaf2d4f954cd7acdd1fb414c46a); review-package.json (SHA-256 5a99d9c78c3008fb1b12dcfd578b1e89b22efb7518edf4c24619e3c45fc71f29); review-decisions.json (SHA-256 10065e2849f664d68f013dfc17aab2daf7d639d8ae8a8ca4b572e90fb7423590); proof-report.txt (SHA-256 6c8c60dd2ff848ca0135b887dcafd3fab8e244153487158e52f6787137de62f7).
 
 Reviewed code baseline:
-Main is 7592cd396af24190d5ce79a81bf856d003319ede (merge of PR #62). The tree of 9402b5ba8e09f1b90491ade293a64018d6fe33d0 (merge of PR #57) is identical to commit e3bf6f2, which Claude reviewed. The reviewed runtime code is unchanged since 8a3c331 (merge of PR #53): PR #54 and PR #56 changed documentation only, PR #55 added one test file and one documentation section, and PR #57 changed the advisory runner and docs/ci.md. PR #58, PR #59, PR #60, PR #61 and PR #62 changed documentation only. The suite is 462 tests. The advisory runner was changed and reviewed in PR #57: 15,581 bytes, SHA-256 23f1457f...5436. The workflow is unchanged since PR #38: SHA-256 68b451b8...c239. At that reviewed baseline the provider path had only mock acceptance evidence. Dispatch #3 later observed live acceptance and validation once on 2026-11-27 (see below). None of these statements authorizes a dispatch.
+Main at synchronization baseline is 293c0464623b854d2fe8a3b27aab34c400d0a071 (merge of PR #63). The tree of 9402b5ba8e09f1b90491ade293a64018d6fe33d0 (merge of PR #57) is identical to commit e3bf6f2, which Claude reviewed. The reviewed runtime code is unchanged since 8a3c331 (merge of PR #53): PR #54 and PR #56 changed documentation only, PR #55 added one test file and one documentation section, and PR #57 changed the advisory runner and docs/ci.md. PR #58, PR #59, PR #60, PR #61, PR #62 and PR #63 changed documentation only. The suite is 462 tests. The advisory runner was changed and reviewed in PR #57: 15,581 bytes, SHA-256 23f1457f...5436. The workflow is unchanged since PR #38: SHA-256 68b451b8...c239. At that reviewed baseline the provider path had only mock acceptance evidence. Dispatch #3 later observed live acceptance and validation once on 2026-11-27 (see below). None of these statements authorizes a dispatch.
 
 Blocked:
 - Live dispatch #3 completed on 2026-11-27 under the re-dated owner authorization; the November 26 window expired unused. The authorization is consumed; no second invocation, retry or fourth dispatch is authorized. The frozen request returned a result once, with validation passed against the existing rules; the task was subsequently APPROVED through the governed owner route. Owner reason: "The extraction matches the packet and the diagnostic purpose was met." Robert stated "ACCEPT STAGE 6D" and "ROWS 1–15: TRUE". ADR-010 revision 12 is merged and controlling; the documentary field-level grade was explicitly accepted by the owner on 2026-11-27, not a native ledger grade. See docs/pilot/6e-pilot-report.md. See docs/pilot/6d-dispatch-03.md. Evidence is owner-reported Windows execution and read-only inspection; the documentation author did not inspect the raw ledger or model answer.
 - Three authorized live dispatches have been used (#1 auth_rejected, since remediated; #2 HTTP 400; #3 completed). Historical raw ledgers #1/#2 are UNLOCATED, not proven destroyed. The pilot folder was absent and recreated empty with owner/Chair approval on 2026-11-26; cause unknown. Dispatch #3 original and preserved copy have identical owner-reported SHA-256; paths and hash are in its evidence record.
-- Stage 6D is owner accepted; Stage 6E ACCEPTED BY OWNER and Phase 6 CLOSED BY OWNER on 2026-11-27; final repository acceptance awaits reviewed owner merge. Foundation Exit remains HELD awaiting separate owner governance decision; NFL Worker/agent implementation remains HOLD. Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6."
+- Stage 6D is owner accepted; Stage 6E ACCEPTED BY OWNER and Phase 6 CLOSED AND MERGED on 2026-11-27 (PR #63); final repository acceptance is complete. Foundation Exit RELEASED BY OWNER. Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6." "I release Foundation Exit." NFL Worker implementation, Milestone 2A, agent implementation and provider activity are NOT AUTHORIZED.
 - The cause of the HTTP 400 (FI-001) remains inferred, not directly confirmed. The historical schema defect is proven against the provider's documented rules; its repair is verified offline and live recovery observed once. The available FI-001 evidence does not establish a context, memory or retrieval cause. FI-001 alone is not a reason to add retrieval, vector storage or caching. FI-001 is separate from the Source Dataset Provenance Phase.
+
+Foundation certification (2026-11-27):
+- Copilot — COMPLETE
+- Claude — COMPLETE
+- ChatGPT — COMPLETE
+- INFRASTRUCTURE / FOUNDATION COMPLETE — PROCEED TO NEXT GOVERNED WORKLOAD. No currently known general Foundation requirement justifies continued generic infrastructure development before the next governed workload.
+- Generic infrastructure is CLOSED as an active workstream. Infrastructure may reopen only when a specific governed workload demonstrates a concrete missing capability that existing supported Ripley mechanisms cannot satisfy.
+- The next governed workload requires its own approved assignment. Foundation Exit release authorizes no provider activity, live dispatch, NFL Worker implementation, Milestone 2A, agent implementation or change to frozen historical provider artifacts. Deferred and workload-triggered requirements retain their classifications.
 
 Frozen by owner direction:
 - Provider request, prompt, model, schema and dispatch logic.
@@ -326,7 +334,7 @@ Known small items:
 - The reader path has no operator entry point; Ripley must be started from the checkout root; and the isolated reader writes Python cache folders into a checkout that has no ignore file. Findings of the Release Gate Evidence proof. Documentation items; nothing is scheduled.
 
 Owner decision needed:
-- Selection of the next phase. The Source Dataset Provenance Phase is closed and a closed phase does not start the next one. No next phase is chosen and no next-phase work is authorized. Layer 2 is deferred and is not automatically next. Deferred items and their classifications are in docs/source-dataset-provenance-phase-exit.md, section 12, and docs/governed-reader-path-phase-exit.md, section 11; none is authorized.
+- Approval of the next governed workload assignment. The Source Dataset Provenance Phase is closed; Foundation Exit is released, but no next-workload implementation is authorized. Layer 2 is deferred and is not automatically next. Deferred items and their classifications are in docs/source-dataset-provenance-phase-exit.md, section 12, and docs/governed-reader-path-phase-exit.md, section 11; none is authorized.
 - Which evidence audience the first real evaluation must satisfy (internal development, customer-facing, or skeptical external auditor), and whether a real evaluation may begin with external prospective validity unmet and the limit stated.
 - Whether to configure branch protection for main so that owner-only merge is enforced by GitHub and not only by convention. None is configured.
 - A real consumer for what Ripley One produces. Three necessity reviews found no further platform capability justified without one. Inventory Receiving Exception Review is the standing candidate and needs a real operator and documents the owner is permitted to use.
@@ -336,7 +344,7 @@ Owner decision needed:
 - Whether and when the advisory check becomes a required check. Not decided.
 
 Gates before specific future work (none of this work is authorized; each gate applies only if that work is later proposed):
-- Any live provider work: FI-001 and new provider evidence must be reconsidered first. Dispatch #3 observed live recovery once and consumed its authorization; historical attribution remains inferred. Stage 6D and Stage 6E are owner accepted; Phase 6 closed by owner on 2026-11-27; Foundation Exit HELD. No further dispatch is authorized.
+- Any live provider work: FI-001 and new provider evidence must be reconsidered first. Dispatch #3 observed live recovery once and consumed its authorization; historical attribution remains inferred. Stage 6D and Stage 6E are owner accepted; Phase 6 CLOSED AND MERGED (PR #63) on 2026-11-27; Foundation Exit RELEASED BY OWNER. No further dispatch is authorized.
 - Any reasoning that costs money: the reasoning envelope (ADR-015) must first be reconciled with dispatch governance (ADR-010).
 - Any reader that costs money: the rule that a person may resubmit a blocked reader task must be decided again (ADR-016 decision 25).
 - Any model-backed reader, or any reader that is not first-party deterministic code: its own ADR and owner decision; its instruction or prompt identity must be explicitly pinned and governed; and process and output containment must be reconsidered, because output is measured after a process ends and process isolation is not a sandbox.
@@ -346,9 +354,9 @@ Gates before specific future work (none of this work is authorized; each gate ap
 - Any operator interface for the reader path: it becomes a candidate only when repeated operation is needed, existing invocation is unreasonably difficult or error-prone, a bounded interface would improve safety or usability, and it adds no authority and no persistence. One proof run has not established repeated operation.
 
 Next round-table topics:
-- Selection of the next phase, when the owner calls for it.
+- Selection and approval of the next governed workload, when the owner calls for it.
 - What the Release Gate Evidence proof showed, and whether any capability now has a real consumer.
-- Phase 6 disposition after Dispatch #3: Stage 6D and Stage 6E owner accepted; Phase 6 closed by owner on 2026-11-27; final delta review, hosted check and owner merge remain required. Foundation Exit awaits separate owner decision. Historical raw ledgers remain UNLOCATED. No further dispatch is authorized.
+- Phase 6 disposition is complete; PR #63 merged and Foundation Exit RELEASED BY OWNER. Historical raw ledgers remain UNLOCATED. No further dispatch is authorized.
 - Timing of the source-reader ADR.
 
 ## 7. History
@@ -403,6 +411,7 @@ Next round-table topics:
 | 2026-11-26 | Dispatch #3 signed authorization window expired unused; historical raw ledgers #1/#2 UNLOCATED; pilot folder recreated empty with owner/Chair approval | PR #59; docs/decisions/phase-6d-authorization-03.md |
 | 2026-11-27 | Re-dated authorization merged (PR #60); Dispatch #3 completed once, validation passed, pending_owner_approval at execution; authorization consumed | docs/pilot/6d-dispatch-03.md |
 | 2026-11-27 | Governed task approved; Stage 6D owner accepted; ADR-010 revision 12 merged (PR #62); 15 documentary owner judgments explicitly accepted; Stage 6E accepted and Phase 6 closed by owner; final repository acceptance awaits reviewed merge; Foundation Exit HELD | docs/pilot/6e-pilot-report.md; docs/phase-6-provider-worker-phase-exit.md |
+| 2026-11-27 | PR #63 merged; Phase 6 repository acceptance complete; Foundation Exit released by owner; 3/3 Foundation certification complete; generic infrastructure closed as an active workstream | PR #63; owner release recorded in section 6 |
 
 ## 8. Future add-ons (ideas only)
 
