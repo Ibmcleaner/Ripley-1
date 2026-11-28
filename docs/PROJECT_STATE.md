@@ -1,6 +1,6 @@
 # Ripley One — Project State and Handoff
 
-Last updated: 2026-11-27, against main 293c0464623b854d2fe8a3b27aab34c400d0a071 (PR #63).
+Last updated: 2026-11-27, against main 21e48d0527c3a36795ccf8d42d119f4b8c50ffb9 (PR #65).
 Owner: Robert Legorreta, Cyrus Forge Systems, LLC.
 
 Read this file first in any new chat. It is the entry point, not the full record. Where this file and a detailed record disagree, the detailed record (ADR, pilot record, FI record) is correct and this file needs fixing.
@@ -290,7 +290,7 @@ Main at synchronization baseline is 293c0464623b854d2fe8a3b27aab34c400d0a071 (me
 Blocked:
 - Live dispatch #3 completed on 2026-11-27 under the re-dated owner authorization; the November 26 window expired unused. The authorization is consumed; no second invocation, retry or fourth dispatch is authorized. The frozen request returned a result once, with validation passed against the existing rules; the task was subsequently APPROVED through the governed owner route. Owner reason: "The extraction matches the packet and the diagnostic purpose was met." Robert stated "ACCEPT STAGE 6D" and "ROWS 1–15: TRUE". ADR-010 revision 12 is merged and controlling; the documentary field-level grade was explicitly accepted by the owner on 2026-11-27, not a native ledger grade. See docs/pilot/6e-pilot-report.md. See docs/pilot/6d-dispatch-03.md. Evidence is owner-reported Windows execution and read-only inspection; the documentation author did not inspect the raw ledger or model answer.
 - Three authorized live dispatches have been used (#1 auth_rejected, since remediated; #2 HTTP 400; #3 completed). Historical raw ledgers #1/#2 are UNLOCATED, not proven destroyed. The pilot folder was absent and recreated empty with owner/Chair approval on 2026-11-26; cause unknown. Dispatch #3 original and preserved copy have identical owner-reported SHA-256; paths and hash are in its evidence record.
-- Stage 6D is owner accepted; Stage 6E ACCEPTED BY OWNER and Phase 6 CLOSED AND MERGED on 2026-11-27 (PR #63); final repository acceptance is complete. Foundation Exit RELEASED BY OWNER. Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6." "I release Foundation Exit." NFL Worker implementation, Milestone 2A, agent implementation and provider activity are NOT AUTHORIZED.
+- Stage 6D is owner accepted; Stage 6E ACCEPTED BY OWNER and Phase 6 CLOSED AND MERGED on 2026-11-27 (PR #63); final repository acceptance is complete. Foundation Exit RELEASED BY OWNER. Owner decisions (2026-11-27): "I explicitly accept the documentary field-level grade of ROWS 1–15: TRUE." "I accept Stage 6E." "I close Phase 6." "I release Foundation Exit." NFL Worker implementation, Milestone 2B, agent implementation and provider activity are NOT AUTHORIZED.
 - The cause of the HTTP 400 (FI-001) remains inferred, not directly confirmed. The historical schema defect is proven against the provider's documented rules; its repair is verified offline and live recovery observed once. The available FI-001 evidence does not establish a context, memory or retrieval cause. FI-001 alone is not a reason to add retrieval, vector storage or caching. FI-001 is separate from the Source Dataset Provenance Phase.
 
 Foundation certification (2026-11-27):
@@ -300,6 +300,8 @@ Foundation certification (2026-11-27):
 - INFRASTRUCTURE / FOUNDATION COMPLETE — PROCEED TO NEXT GOVERNED WORKLOAD. No currently known general Foundation requirement justifies continued generic infrastructure development before the next governed workload.
 - Generic infrastructure is CLOSED as an active workstream. Infrastructure may reopen only when a specific governed workload demonstrates a concrete missing capability that existing supported Ripley mechanisms cannot satisfy.
 - The next governed workload requires its own approved assignment. Foundation Exit release authorizes no provider activity, live dispatch, NFL Worker implementation, Milestone 2A, agent implementation or change to frozen historical provider artifacts. Deferred and workload-triggered requirements retain their classifications.
+
+Milestone 2A: AUTHORIZED by Robert's separate "APPROVE ALL+" decision — domain contract, source rules, fixture/test-material specification and evaluation design only. See docs/nfl-milestone-2a-domain-package.md. Fixture selection and expected-answer approval remain outstanding. Milestone 2B, Worker implementation, provider activity, automated acquisition and agent implementation are NOT AUTHORIZED. Generic infrastructure remains CLOSED.
 
 Frozen by owner direction:
 - Provider request, prompt, model, schema and dispatch logic.
@@ -334,7 +336,7 @@ Known small items:
 - The reader path has no operator entry point; Ripley must be started from the checkout root; and the isolated reader writes Python cache folders into a checkout that has no ignore file. Findings of the Release Gate Evidence proof. Documentation items; nothing is scheduled.
 
 Owner decision needed:
-- Approval of the next governed workload assignment. The Source Dataset Provenance Phase is closed; Foundation Exit is released, but no next-workload implementation is authorized. Layer 2 is deferred and is not automatically next. Deferred items and their classifications are in docs/source-dataset-provenance-phase-exit.md, section 12, and docs/governed-reader-path-phase-exit.md, section 11; none is authorized.
+- Approval of fixture selection and expected answers for Milestone 2A, and separate release of any future Milestone 2B implementation assignment. The Source Dataset Provenance Phase is closed; Foundation Exit is released, but no next-workload implementation is authorized. Layer 2 is deferred and is not automatically next. Deferred items and their classifications are in docs/source-dataset-provenance-phase-exit.md, section 12, and docs/governed-reader-path-phase-exit.md, section 11; none is authorized.
 - Which evidence audience the first real evaluation must satisfy (internal development, customer-facing, or skeptical external auditor), and whether a real evaluation may begin with external prospective validity unmet and the limit stated.
 - Whether to configure branch protection for main so that owner-only merge is enforced by GitHub and not only by convention. None is configured.
 - A real consumer for what Ripley One produces. Three necessity reviews found no further platform capability justified without one. Inventory Receiving Exception Review is the standing candidate and needs a real operator and documents the owner is permitted to use.
@@ -354,7 +356,7 @@ Gates before specific future work (none of this work is authorized; each gate ap
 - Any operator interface for the reader path: it becomes a candidate only when repeated operation is needed, existing invocation is unreasonably difficult or error-prone, a bounded interface would improve safety or usability, and it adds no authority and no persistence. One proof run has not established repeated operation.
 
 Next round-table topics:
-- Selection and approval of the next governed workload, when the owner calls for it.
+- Milestone 2A domain package review and fixture coverage/expected-answer approval; Milestone 2B remains unauthorized.
 - What the Release Gate Evidence proof showed, and whether any capability now has a real consumer.
 - Phase 6 disposition is complete; PR #63 merged and Foundation Exit RELEASED BY OWNER. Historical raw ledgers remain UNLOCATED. No further dispatch is authorized.
 - Timing of the source-reader ADR.
